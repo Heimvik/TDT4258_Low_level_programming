@@ -1,4 +1,5 @@
-//TASK A: 
+//TASK A:
+
 .section .text
 .global _start
 _start:
@@ -17,24 +18,26 @@ writeToJtag:
     mov r6,#0
     b checkSpaceInJtag
 
-checkSpaceInJtag:    
-    ldr r3, =JTAG_CONTROL_ADR
-    ldr r3, [r3]
-    ldrb r4, [r3,#2]
-    cmp r4, #0x08
-    bhi writeByteToJtag
-    b checkSpaceInJtag
-writeByteToJtag:
-    ldrb r5, [r0]
-    strb r5, [r3]
-    add r6,r6,#1
-    cmp r6,r1
-    beq returnFromJtag
-    b writeByteToJtag
-returnFromJtag:
-    pop {r4-r12}
-    pop {lr}
-    bx lr
+    checkSpaceInJtag:    
+        ldr r3, =JTAG_CONTROL_ADR
+        ldr r3, [r3]
+        ldrb r4, [r3,#2]
+        cmp r4, #0x08
+        bhi writeByteToJtag
+        b checkSpaceInJtag
+    writeByteToJtag:
+        ldr r3, =JTAG_DATA_ADR
+        ldr r3, [r3]
+        ldrb r5, [r0]
+        strb r5, [r3]
+        add r6,r6,#1
+        cmp r6,r1
+        beq returnFromJtag
+        b writeByteToJtag
+    returnFromJtag:
+        pop {r4-r12}
+        pop {lr}
+        bx lr
 
 init:
     ldr r0, =DATA_ADR
