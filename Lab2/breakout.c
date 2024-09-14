@@ -79,7 +79,7 @@ void setPixel(unsigned int** backBuffer, unsigned int xCoord, unsigned int yCoor
 
 //Game-level declarations
 void drawBlock(unsigned int** backBuffer, unsigned int xCoord, unsigned int yCoord, unsigned int width, unsigned int height, unsigned int color);
-void drawBar(unsigned int y);
+void drawBar(unsigned int** backBuffer,unsigned int y);
 
 //VGA declarations
 struct VGA* initVGA();
@@ -97,6 +97,7 @@ void writeUart(char c);
 Inline asssembly, option 1: 
 
 Here I represent one way of doing inline assembly, the best way in my opinion is to use the __asm__ construct, as it is more readable and easier to understand.
+The output parameters in the first :, the inputs after the second :, and the clobberend callee registers at the last :
 */
 
 void setScreenColor(unsigned int** backBuffer, unsigned int color){
@@ -171,12 +172,29 @@ asm(
     
     "pop {r4-r9}\n\t"
     "pop {lr}\n\t"
+    //"pop {r0,r1}\n\t" //THESE ARE THE PROBLEM LINES!//Has to be like this, as in the native C noone can pop for that one
     "bx lr\n\t"
 );
-
+//Important: the native does NOT push and pop onto stack, aka dec and inc on the stack pointer, it just uses the offset
 // TODO: Impelement the DrawBar function in assembly. You need to accept the parameter as outlined in the c declaration above (unsigned int y)
-asm("DrawBar: \n\t"
-    "BX LR");
+asm(
+    "drawBar: \n\t"
+    "push {lr}\n\t"
+    "push {r4,r5}\n\t"
+    
+    "mov r2,r1\n\t"
+    "mov r1,#0\n\t"
+    "mov r3,#7\n\t"
+    "mov r4,#45\n\t"
+    "ldr r5,=white\n\t"
+    "ldr r5,[r5]\n\t"
+    "push {r4,r5}\n\t"
+    "bl drawBlock\n\t"
+	"pop {r0,r1}\n\t" //add r13,13,0x8 would also do the trick
+
+	"pop {r4,r5}\n\t"
+    "pop {lr}\n\t"
+    "bx lr");
 
 asm("ReadUart:\n\t"
     "LDR R1, =0xFF201000 \n\t"
@@ -277,7 +295,6 @@ void play()
         }
         draw_playing_field();
         draw_ball();
-        DrawBar(120); // TODO: replace the constant value with the current position of the bar
     }
     if (currentState == Won)
     {
@@ -322,10 +339,11 @@ int main(int argc, char *argv[])
     struct VGA vga = *initVGA();
     
     while(1){
-        checkForBufferSwitch(vga.status,vga.frontBuffer);
-        setScreenColor(vga.backBuffer,black);
+        //checkForBufferSwitch(vga.status,vga.frontBuffer);
+        setScreenColor(vga.frontBuffer,black);
         //setPixel(vga.backBuffer, 100, 100, white);
-        drawBlock(vga.backBuffer, 100, 100, 10, 10, white);
+        drawBlock(vga.frontBuffer, 100, 100, 10, 10, white);
+        drawBar(vga.frontBuffer, 100);
     }
     // HINT: This loop allows the user to restart the game after loosing/winning the previous game
     while (1)
