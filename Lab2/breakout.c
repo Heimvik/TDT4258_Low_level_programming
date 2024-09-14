@@ -75,10 +75,10 @@ GameState currentState = Stopped;
 
 //Pixel-level declarations
 void setScreenColor(unsigned int** backBuffer, unsigned int color);
-void setPixel(unsigned int x_coord, unsigned int y_coord, unsigned int color);
+void setPixel(unsigned int** backBuffer, unsigned int xCoord, unsigned int yCoord, unsigned int color);
 
 //Game-level declarations
-void drawBlock(unsigned int x, unsigned int y, unsigned int width, unsigned int height, unsigned int color);
+void drawBlock(unsigned int** backBuffer, unsigned int xCoord, unsigned int yCoord, unsigned int width, unsigned int height, unsigned int color);
 void drawBar(unsigned int y);
 
 //VGA declarations
@@ -92,39 +92,87 @@ void writeUart(char c);
 
 
 //Pixel-level definitions
+
+/*
+Inline asssembly, option 1: 
+
+Here I represent one way of doing inline assembly, the best way in my opinion is to use the __asm__ construct, as it is more readable and easier to understand.
+*/
+
 void setScreenColor(unsigned int** backBuffer, unsigned int color){
     unsigned long long backBufferLength = (unsigned long long)VGA_BUFFER_LENGTH;
     __asm__(
-        "ldr r4,[%[backBuffer]]\n\t" //Gives the adress for the start of the back buffer
+        "ldr r4,[%[backBuf]]\n\t" //Gives the adress for the start of the back buffer
         "mov r5,#0x0\n\t"       //Iterator in bytes
         "mov r6,%[length]\n\t"      
         "mov r7,%[col]\n\t"
 
-        "loop:\n\t"
+        "sSCloop:\n\t"
         "strh r7,[r4,r5]\n\t"
         "add r5,r5,#0x2\n\t"
         "cmp r5,r6\n\t"
-        "bne loop\n\t"
-
+        "bne sSCloop\n\t"
         : //No output
-        : [backBuffer] "r"(backBuffer), [length]"r"(backBufferLength), [col] "r"(color) // Input
+        : [backBuf] "r"(backBuffer), [length]"r"(backBufferLength), [col] "r"(color) // Input
         : "r4", "r5", "r6", "r7" // Clobbered registers
     );
 }
-// assumes R0 = x-coord, R1 = y-coord, R2 = colorvalue
-asm("SetPixel: \n\t"
-    "LDR R3, =VGAaddress \n\t"
-    "LDR R3, [R3] \n\t"
-    "LSL R1, R1, #10 \n\t"
-    "LSL R0, R0, #1 \n\t"
-    "ADD R1, R0 \n\t"
-    "STRH R2, [R3,R1] \n\t"
-    "BX LR");
+void setPixel(unsigned int** backBuffer, unsigned int xCoord, unsigned int yCoord, unsigned int color){
+    __asm__(
+        "ldr r4, [%[backBuf]]\n\t"
+        "mov r5, %[x]\n\t"
+        "mov r6, %[y]\n\t"
+        "lsl r5, r5, #1\n\t" //lsl x
+        "lsl r6, r6, #10\n\t"//lsl y
+        "add r5, r5, r6\n\t"
 
-// TODO: Implement the DrawBlock function in assembly. You need to accept 5 parameters, as outlined in the c declaration above (unsigned int x, unsigned int y, unsigned int width, unsigned int height, unsigned int color)
-asm("DrawBlock: \n\t"
-    // TODO: Here goes your implementation
-    "BX LR");
+        "mov r7, %[col]\n\t"
+        "strh r7, [r4, r5]\n\t"
+        : //No output
+        : [backBuf] "r" (backBuffer), [x] "r" (xCoord), [y] "r" (yCoord), [col] "r" (color)
+        : "r4", "r5", "r6", "r7" // Clobbered registers
+    );
+}
+
+
+/*
+Inline assembly, option 2: 
+
+Here i represent another way of doing inline assembly, using the asm() and implementing the functuion at the label of very same function
+    Seems here that you want us to explicitly use the r0-r3 for parameters, in addition to pushing the last to stack, so i will do that, even that can be taken care of by the constructs above
+    As i am using the back buffer, 2 parameters needs to be pushed and popped to/from stack
+*/
+
+//Assumes: backBuffer at r0, xCoord at r1, yCoord at r2, width at r3, height at [r13], color at [r13,#0x4]
+asm(
+    "drawBlock: \n\t"
+    "push {lr}\n\t"
+    "push {r4-r9}\n\t"
+    "mov r4, r3\n\t" //width
+    "ldr r5,[r13,#0x1C]\n\t" //height
+    "ldr r3,[r13,#0x20]\n\t" //color
+
+    "mov r6, r1\n\t" //Initial coordiante of x
+    "mov r7, r2\n\t" //initial coordiante of y
+    "mov r8, #0x0\n\t" //Iterator for x
+    "mov r9, #0x0\n\t" //Iterator for y
+
+    "dBloop:\n\t"
+    "bl setPixel\n\t"
+    "add r1, r6, r8\n\t"
+    "add r8, r8, #0x1\n\t"
+    "cmp r8, r4\n\t"
+    "bne dBloop\n\t"
+    "add r2, r7, r9\n\t"
+    "add r9, r9, #0x1\n\t"
+    "mov r8, #0x0\n\t"
+    "cmp r9, r5\n\t"
+    "bne dBloop\n\t"
+    
+    "pop {r4-r9}\n\t"
+    "pop {lr}\n\t"
+    "bx lr\n\t"
+);
 
 // TODO: Impelement the DrawBar function in assembly. You need to accept the parameter as outlined in the c declaration above (unsigned int y)
 asm("DrawBar: \n\t"
@@ -274,8 +322,10 @@ int main(int argc, char *argv[])
     struct VGA vga = *initVGA();
     
     while(1){
-        setScreenColor(vga.backBuffer,black);
         checkForBufferSwitch(vga.status,vga.frontBuffer);
+        setScreenColor(vga.backBuffer,black);
+        //setPixel(vga.backBuffer, 100, 100, white);
+        drawBlock(vga.backBuffer, 100, 100, 10, 10, white);
     }
     // HINT: This loop allows the user to restart the game after loosing/winning the previous game
     while (1)
