@@ -1,3 +1,22 @@
+#define set_bit(reg, bit) reg |= (1 << bit)
+#define clear_bit(reg, bit) reg &= ~(1 << bit)
+#define check_bit(reg, bit) (reg & (1 << bit))
+
+#define VGA_FRONT_BUFFER 0xC8000000
+#define VGA_BACK_BUFFER 0xC000000
+#define VGA_BUFFER_LENGTH 0x3BE7E
+
+#define VGA_CONTROL_BASE 0xFF203020
+#define VGA_CONTROL_FRONT 0x0
+#define VGA_CONTROL_BACK 0x4
+#define VGA_STATUS_REG 0xC
+#define VGA_STATUS_BIT 0x0
+
+#define VGA_HEIGHT 320
+#define VGA_WIDTH 240
+#define SCREEN_HEIGHT 320
+#define SCREEN_WIDTH 240
+
 /***************************************************************************************************
  * DON'T REMOVE THE VARIABLES BELOW THIS COMMENT                                                   *
  **************************************************************************************************/
@@ -21,6 +40,11 @@ char font8x8[128][8];        // DON'T TOUCH THIS - this is a forward declaration
  * TODO: Define your variables below this comment
  */
 
+struct VGA {
+    unsigned int** frontBuffer;
+    unsigned int** backBuffer;
+    unsigned int* status;
+};
 /***
  * You might use and modify the struct/enum definitions below this comment
  */
@@ -47,25 +71,46 @@ GameState currentState = Stopped;
  * Here follow the C declarations for our assembly functions
  */
 
-// TODO: Add a C declaration for the ClearScreen assembly procedure
-void SetPixel(unsigned int x_coord, unsigned int y_coord, unsigned int color);
-void DrawBlock(unsigned int x, unsigned int y, unsigned int width, unsigned int height, unsigned int color);
-void DrawBar(unsigned int y);
-int ReadUart();
-void WriteUart(char c);
 
-/***
- * Now follow the assembly implementations
- */
 
-asm("ClearScreen: \n\t"
-    "    PUSH {LR} \n\t"
-    "    PUSH {R4, R5} \n\t"
-    // TODO: Add ClearScreen implementation in assembly here
-    "    POP {R4,R5}\n\t"
-    "    POP {LR} \n\t"
-    "    BX LR");
+//Pixel-level declarations
+void setScreenColor(unsigned int** backBuffer, unsigned int color);
+void setPixel(unsigned int x_coord, unsigned int y_coord, unsigned int color);
 
+//Game-level declarations
+void drawBlock(unsigned int x, unsigned int y, unsigned int width, unsigned int height, unsigned int color);
+void drawBar(unsigned int y);
+
+//VGA declarations
+struct VGA* initVGA();
+
+//UART declarations
+int readUart();
+void writeUart(char c);
+
+
+
+
+//Pixel-level definitions
+void setScreenColor(unsigned int** backBuffer, unsigned int color){
+    unsigned long long backBufferLength = (unsigned long long)VGA_BUFFER_LENGTH;
+    __asm__(
+        "ldr r4,[%[backBuffer]]\n\t" //Gives the adress for the start of the back buffer
+        "mov r5,#0x0\n\t"       //Iterator in bytes
+        "mov r6,%[length]\n\t"      
+        "mov r7,%[col]\n\t"
+
+        "loop:\n\t"
+        "strh r7,[r4,r5]\n\t"
+        "add r5,r5,#0x2\n\t"
+        "cmp r5,r6\n\t"
+        "bne loop\n\t"
+
+        : //No output
+        : [backBuffer] "r"(backBuffer), [length]"r"(backBufferLength), [col] "r"(color) // Input
+        : "r4", "r5", "r6", "r7" // Clobbered registers
+    );
+}
 // assumes R0 = x-coord, R1 = y-coord, R2 = colorvalue
 asm("SetPixel: \n\t"
     "LDR R3, =VGAaddress \n\t"
@@ -90,7 +135,48 @@ asm("ReadUart:\n\t"
     "LDR R0, [R1]\n\t"
     "BX LR");
 
+//Game-level definitions
+void initGame(){
+    //Initializes a new game
+}
+
+//VGA definitions
+struct VGA* initVGA(){
+    struct VGA* controller = (struct VGA*)malloc(sizeof(struct VGA));
+    controller->frontBuffer = (unsigned int**)(VGA_CONTROL_BASE+VGA_CONTROL_FRONT);
+    controller->backBuffer = (unsigned int**)(VGA_CONTROL_BASE+VGA_CONTROL_BACK);
+    controller->status = (unsigned int**)(VGA_CONTROL_BASE+VGA_STATUS_REG);
+
+    *(controller->frontBuffer) = (unsigned int*)VGA_FRONT_BUFFER;
+    *(controller->backBuffer) = (unsigned int*)VGA_BACK_BUFFER;
+
+    return controller;
+}
+
+// Interrupts was not avalibale for the S bit here, so this is pollong based :(
+void checkForBufferSwitch(unsigned int* status,unsigned int** frontBuffer){
+    if(!(check_bit(*status, VGA_STATUS_BIT))){
+        *frontBuffer = (unsigned int*)0x1;
+    }
+}
+
+
+
 // TODO: Add the WriteUart assembly procedure here that respects the WriteUart C declaration on line 46
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // TODO: Implement the C functions below
 void draw_ball()
@@ -131,7 +217,7 @@ void write(char *str)
 
 void play()
 {
-    ClearScreen();
+    //ClearScreen();
     // HINT: This is the main game loop
     while (1)
     {
@@ -185,8 +271,12 @@ void wait_for_start()
 
 int main(int argc, char *argv[])
 {
-    ClearScreen();
-
+    struct VGA vga = *initVGA();
+    
+    while(1){
+        setScreenColor(vga.backBuffer,black);
+        checkForBufferSwitch(vga.status,vga.frontBuffer);
+    }
     // HINT: This loop allows the user to restart the game after loosing/winning the previous game
     while (1)
     {
