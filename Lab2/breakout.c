@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <unistd.h>
+
 #define set_bit(reg, bit) reg |= (1 << bit)
 #define clear_bit(reg, bit) reg &= ~(1 << bit)
 #define check_bit(reg, bit) (reg & (1 << bit))
@@ -6,16 +9,34 @@
 #define VGA_BACK_BUFFER 0xC000000
 #define VGA_BUFFER_LENGTH 0x3BE7E
 
+#define TIMER_BASE 0xFFFEC600
+#define TIMER_LOAD 0x0
+#define TIMER_VALUE 0x4
+#define TIMER_CONTROL 0x8
+#define TIMER_STATUS 0xC
+#define TIMER_FREQUENCY 200000000
+#define TIMER_ENABLE_BIT 0x0
+#define TIMER_STATUS_BIT 0x2
+#define TIMER_AUTO_BIT 0x1
+#define TIMER_FLAG_BIT 0x0
+
 #define VGA_CONTROL_BASE 0xFF203020
 #define VGA_CONTROL_FRONT 0x0
 #define VGA_CONTROL_BACK 0x4
 #define VGA_STATUS_REG 0xC
 #define VGA_STATUS_BIT 0x0
 
-#define VGA_HEIGHT 320
-#define VGA_WIDTH 240
-#define SCREEN_WIDTH 640
-#define SCREEN_HEIGHT 480
+#define VGA_WIDTH 320
+#define VGA_HEIGHT 240
+
+#define BLOCK_WIDTH 15
+#define BLOCK_HEIGHT 15
+#define BAR_WIDTH 45
+#define BAR_HEIGHT 7
+#define BALL_WIDTH 7
+#define BALL_HEIGHT 7
+
+
 
 /***************************************************************************************************
  * DON'T REMOVE THE VARIABLES BELOW THIS COMMENT                                                   *
@@ -28,6 +49,7 @@ unsigned int __attribute__((used)) white = 0x0000FFFF;
 unsigned int __attribute__((used)) black = 0x0;
 
 unsigned char n_cols = 10; // <- This variable might change depending on the size of the game. Supported value range: [1,18]
+unsigned char n_rows = 5;
 
 char *won = "You Won";       // DON'T TOUCH THIS - keep the string as is
 char *lost = "You Lost";     // DON'T TOUCH THIS - keep the string as is
@@ -40,24 +62,40 @@ char font8x8[128][8];        // DON'T TOUCH THIS - this is a forward declaration
  * TODO: Define your variables below this comment
  */
 
-struct VGA {
+typedef struct VGA {
     unsigned int** frontBuffer;
     unsigned int** backBuffer;
     unsigned int* status;
-};
-/***
- * You might use and modify the struct/enum definitions below this comment
- */
-typedef struct _block
+} VGA;
+
+typedef struct Block
 {
-    unsigned char destroyed;
-    unsigned char deleted;
-    unsigned int pos_x;
-    unsigned int pos_y;
     unsigned int color;
+    unsigned int xPos;
+    unsigned int yPos;
+    unsigned int width;
+    unsigned int height;
 } Block;
 
-typedef enum _gameState
+typedef struct Bar
+{
+    unsigned int color;
+    unsigned int xPos;
+    unsigned int yPos;
+    unsigned int width;
+    unsigned int height;
+} Bar;
+
+typedef struct Ball
+{
+    unsigned int color;
+    unsigned int xPos;
+    unsigned int yPos;
+    unsigned int width;
+    unsigned int height;
+} Ball;
+
+typedef enum GameState
 {
     Stopped = 0,
     Running = 1,
@@ -65,7 +103,15 @@ typedef enum _gameState
     Lost = 3,
     Exit = 4,
 } GameState;
-GameState currentState = Stopped;
+
+typedef struct Game
+{
+    Block** blocks;
+    Bar bar;
+    Ball ball;
+    GameState state;
+} Game;
+
 
 /***
  * Here follow the C declarations for our assembly functions
@@ -144,7 +190,6 @@ Here i represent another way of doing inline assembly, using the asm() and imple
     As i am using the back buffer, 2 parameters needs to be pushed and popped to/from stack
 */
 
-//Assumes: backBuffer at r0, xCoord at r1, yCoord at r2, width at r3, height at [r13], color at [r13,#0x4]
 asm(
     "drawBlock: \n\t"
     "push {lr}\n\t"
@@ -172,11 +217,8 @@ asm(
     
     "pop {r4-r9}\n\t"
     "pop {lr}\n\t"
-    //"pop {r0,r1}\n\t" //THESE ARE THE PROBLEM LINES!//Has to be like this, as in the native C noone can pop for that one
     "bx lr\n\t"
 );
-//Important: the native does NOT push and pop onto stack, aka dec and inc on the stack pointer, it just uses the offset
-// TODO: Impelement the DrawBar function in assembly. You need to accept the parameter as outlined in the c declaration above (unsigned int y)
 asm(
     "drawBar: \n\t"
     "push {lr}\n\t"
@@ -186,7 +228,7 @@ asm(
     "mov r1,#0\n\t"
     "mov r3,#7\n\t"
     "mov r4,#45\n\t"
-    "ldr r5,=white\n\t"
+    "ldr r5,=black\n\t"
     "ldr r5,[r5]\n\t"
     "push {r4,r5}\n\t"
     "bl drawBlock\n\t"
@@ -202,17 +244,13 @@ asm("ReadUart:\n\t"
     "LDR R0, [R1]\n\t"
     "BX LR");
 
-//Game-level definitions
-void initGame(){
-    //Initializes a new game
-}
 
 //VGA definitions
-struct VGA* initVGA(){
-    struct VGA* controller = (struct VGA*)malloc(sizeof(struct VGA));
+VGA* initVGA(){
+    VGA* controller = (VGA*)malloc(sizeof(VGA));
     controller->frontBuffer = (unsigned int**)(VGA_CONTROL_BASE+VGA_CONTROL_FRONT);
     controller->backBuffer = (unsigned int**)(VGA_CONTROL_BASE+VGA_CONTROL_BACK);
-    controller->status = (unsigned int**)(VGA_CONTROL_BASE+VGA_STATUS_REG);
+    controller->status = (unsigned int*)(VGA_CONTROL_BASE+VGA_STATUS_REG);
 
     *(controller->frontBuffer) = (unsigned int*)VGA_FRONT_BUFFER;
     *(controller->backBuffer) = (unsigned int*)VGA_BACK_BUFFER;
@@ -220,21 +258,100 @@ struct VGA* initVGA(){
     return controller;
 }
 
-// Interrupts was not avalibale for the S bit here, so this is pollong based :(
+Game initGame(){
+    Block** blocks = (Block**)malloc(n_rows*sizeof(Block*));
+    for(int i = 0; i < n_rows; i++){
+        blocks[i] = (Block*)malloc(n_cols*sizeof(Block));
+    }
+    for(int i = 0; i < n_rows; i++){
+        for(int j = 0; j < n_cols; j++){
+            blocks[i][j] = (Block){
+                .color = black,
+                .xPos = (VGA_WIDTH-BALL_WIDTH)-(j*(BLOCK_WIDTH+1)),
+                .yPos = i*(BLOCK_HEIGHT+1),
+                .width = BLOCK_WIDTH,
+                .height = BLOCK_HEIGHT
+            };
+        }
+    }
+    Bar bar = (Bar){
+        .color = blue,
+        .xPos = 0,
+        .yPos = 0,
+        .width = BAR_WIDTH,
+        .height = BAR_HEIGHT
+    };
+    Ball ball = (Ball){
+        .color = red,
+        .xPos = 100,
+        .yPos = 100,
+        .width = BALL_WIDTH,
+        .height = BALL_HEIGHT
+    };
+    Game game = (Game){
+        .blocks = blocks,
+        .bar = bar,
+        .ball = ball,
+        .state = Stopped
+    };
+    return game;
+}
+
+void drawGame(unsigned int** buffer, Game game){
+    for(int i = 0; i < n_rows; i++){
+        for(int j = 0; j < n_cols; j++){
+            drawBlock(buffer, game.blocks[i][j].xPos, game.blocks[i][j].yPos, game.blocks[i][j].width, game.blocks[i][j].height, game.blocks[i][j].color);
+        }
+    }
+    drawBlock(buffer, game.bar.xPos, game.bar.yPos, game.bar.width, game.bar.height, game.bar.color);
+    drawBlock(buffer, game.ball.xPos, game.ball.yPos, game.ball.width, game.ball.height, game.ball.color);
+}
+
+void freeResources(){
+    //VGA
+    //Blocks
+}
+// Interrupts was not avalibale for the S bit here, so this is polling based :(
 void checkForBufferSwitch(unsigned int* status,unsigned int** frontBuffer){
     if(!(check_bit(*status, VGA_STATUS_BIT))){
         *frontBuffer = (unsigned int*)0x1;
     }
 }
 
+int checkTimer(){
+    unsigned int* timerStatus = (unsigned int*)(TIMER_BASE+TIMER_STATUS);
+    if(check_bit(*timerStatus, TIMER_FLAG_BIT)){
+        set_bit(*timerStatus, TIMER_FLAG_BIT);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+void loadTimer(){
+    unsigned int* timerCtrl = (unsigned int*)(TIMER_BASE+TIMER_CONTROL);
+    clear_bit(*timerCtrl, TIMER_ENABLE_BIT);
+    set_bit(*timerCtrl, TIMER_AUTO_BIT);
+
+    unsigned int* timerLoad = (unsigned int*)(TIMER_BASE+TIMER_LOAD);
+    *timerLoad = 3*TIMER_FREQUENCY;   //Gives us one second of delay
+
+    set_bit(*timerCtrl, TIMER_ENABLE_BIT);
+}
+
+//UART definitions
+//rewriteReadUart to c, along with its writeUart companion
 
 int main(int argc, char *argv[])
 {
-    struct VGA vga = *initVGA();
-    
+    VGA vga = *initVGA();
+    Game game = initGame();
+    loadTimer();
     while(1){
-        setScreenColor(vga.frontBuffer,black);
-        drawBlock(vga.frontBuffer, 100, 100, 10, 10, white);
-        drawBar(vga.frontBuffer, 100);
+        setScreenColor(vga.backBuffer, white);
+        drawGame(vga.backBuffer, game);
+
+        if (checkTimer()){
+            checkForBufferSwitch(vga.status, vga.frontBuffer);
+        }
     }
 }
