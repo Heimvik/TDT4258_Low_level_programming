@@ -30,6 +30,7 @@
 #define VGA_WIDTH 320
 #define VGA_HEIGHT 240
 
+#define BLOCK_BASE 306
 #define BLOCK_WIDTH 15
 #define BLOCK_HEIGHT 15
 #define BAR_WIDTH 45
@@ -49,8 +50,8 @@ unsigned int __attribute__((used)) blue = 0x000000FF;
 unsigned int __attribute__((used)) white = 0x0000FFFF;
 unsigned int __attribute__((used)) black = 0x0;
 
-unsigned char n_cols = 10; // <- This variable might change depending on the size of the game. Supported value range: [1,18]
-unsigned char n_rows = 5;
+unsigned char n_cols = 2; // <- This variable might change depending on the size of the game. Supported value range: [1,18]
+unsigned char n_rows = 15;
 
 char *won = "You Won";       // DON'T TOUCH THIS - keep the string as is
 char *lost = "You Lost";     // DON'T TOUCH THIS - keep the string as is
@@ -87,6 +88,17 @@ typedef struct Bar
     unsigned int height;
 } Bar;
 
+typedef struct Vector
+{
+    int x;
+    int y;
+} Vector;
+
+typedef enum Center
+{
+    NONE,UPPER,LOWER,RIGHT,LEFT,
+}Center;
+
 typedef struct Ball
 {
     unsigned int color;
@@ -94,6 +106,7 @@ typedef struct Ball
     unsigned int yPos;
     unsigned int width;
     unsigned int height;
+    Vector direction;
 } Ball;
 
 typedef enum GameState
@@ -268,8 +281,8 @@ Game initGame(){
         for(int j = 0; j < n_cols; j++){
             blocks[i][j] = (Block){
                 .color = black,
-                .xPos = (VGA_WIDTH-BALL_WIDTH)-(j*(BLOCK_WIDTH+1)),
-                .yPos = i*(BLOCK_HEIGHT+1),
+                .xPos = BLOCK_BASE-(j*(BLOCK_WIDTH+2)),
+                .yPos = 1+i*(BLOCK_HEIGHT+1),
                 .width = BLOCK_WIDTH,
                 .height = BLOCK_HEIGHT
             };
@@ -287,7 +300,11 @@ Game initGame(){
         .xPos = 100,
         .yPos = 100,
         .width = BALL_WIDTH,
-        .height = BALL_HEIGHT
+        .height = BALL_HEIGHT,
+        .direction = (Vector){
+            .x = 1,
+            .y = 1
+        }
     };
     Game game = (Game){
         .blocks = blocks,
@@ -306,6 +323,81 @@ void drawGame(unsigned int** buffer, Game game){
     }
     drawBlock(buffer, game.bar.xPos, game.bar.yPos, game.bar.width, game.bar.height, game.bar.color);
     drawBlock(buffer, game.ball.xPos, game.ball.yPos, game.ball.width, game.ball.height, game.ball.color);
+}
+
+Block* getBlockAt(unsigned int x, unsigned int y, Game game){
+    for(int i = 0; i < n_rows; i++){
+        for(int j = 0; j < n_cols; j++){
+            if(x >= game.blocks[i][j].xPos && x <= game.blocks[i][j].xPos+game.blocks[i][j].width && y >= game.blocks[i][j].yPos && y <= game.blocks[i][j].yPos+game.blocks[i][j].height){
+                return &game.blocks[i][j];
+            }
+        }
+    }
+    return NULL;
+}
+
+Center getCenter(int i, int j) {
+    if(j==0 && i==1){
+        return UPPER;
+    } else if(j==0 && i==2){
+        return RIGHT;
+    } else if(j==1 && i==1){
+        return LEFT;
+    } else if(j==1 && i==2){
+        return LOWER;
+    }
+    return NONE;
+}
+
+Block* checkBallForHits(Game game){
+    //Iterate through all corner pixels of the ball, checking for overlaps with blocks
+    Center centersHit[4];
+    unsigned int currentHitCount = 0;
+
+    for(int i = 1; i<=2;i++){
+        for(int j = 0; j<2;j++){
+            if(j == 0){ //Doing double component for x
+                if(getBlockAt(game.ball.xPos+i*((BALL_WIDTH-1)/2), game.ball.yPos+(i-1)*((BALL_HEIGHT-1)/2), game)){
+                    currentHitCount++;
+                    centersHit[currentHitCount] = getCenter(i, j);
+                }
+            } else if (j == 1){ //Doing double component for y
+                if(getBlockAt(game.ball.xPos+(i-1)*((BALL_WIDTH-1)/2), game.ball.yPos+i*((BALL_HEIGHT-1)/2), game)){
+                    currentHitCount++;
+                    centersHit[currentHitCount] = getCenter(i, j);
+                }
+            }
+        }
+    }
+
+    //Calculate the new direction of the ball based off the center hits
+    Vector currentDirection = game.ball.direction;
+    Vector newDirection = (Vector){0,0};
+    switch (currentHitCount)
+    {
+    case 0:
+        return NULL;
+    case 1:
+        switch (centersHit[0])
+        {
+        case UPPER:
+            newDirection = (Vector){currentDirection.x, -currentDirection.y};
+            break;
+        case LOWER:
+            newDirection = (Vector){currentDirection.x, -currentDirection.y};
+            break;
+        case RIGHT:
+            newDirection = (Vector){-currentDirection.x, currentDirection.y};
+            break;
+        case LEFT:
+            newDirection = (Vector){-currentDirection.x, currentDirection.y};
+            break;
+        default:
+            break;
+        }
+        break;
+    case 2:
+        
 }
 
 void freeResources(){
