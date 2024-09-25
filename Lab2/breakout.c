@@ -6,7 +6,7 @@
 #define check_bit(reg, bit) (reg & (1 << bit))
 
 #define VGA_FRONT_BUFFER 0xC8000000
-#define VGA_BACK_BUFFER 0xC000000
+#define VGA_BACK_BUFFER 0xC0000000
 #define VGA_BUFFER_LENGTH 0x3BE7E
 
 #define TIMER_BASE 0xFFFEC600
@@ -19,6 +19,7 @@
 #define TIMER_STATUS_BIT 0x2
 #define TIMER_AUTO_BIT 0x1
 #define TIMER_FLAG_BIT 0x0
+#define TIMER_PRESCALER_BIT 8+0
 
 #define VGA_CONTROL_BASE 0xFF203020
 #define VGA_CONTROL_FRONT 0x0
@@ -312,9 +313,11 @@ void freeResources(){
     //Blocks
 }
 // Interrupts was not avalibale for the S bit here, so this is polling based :(
-void checkForBufferSwitch(unsigned int* status,unsigned int** frontBuffer){
+int checkForBufferSwitch(unsigned int* status){
     if(!(check_bit(*status, VGA_STATUS_BIT))){
-        *frontBuffer = (unsigned int*)0x1;
+        return 1;
+    } else {
+        return 0;
     }
 }
 
@@ -331,9 +334,10 @@ void loadTimer(){
     unsigned int* timerCtrl = (unsigned int*)(TIMER_BASE+TIMER_CONTROL);
     clear_bit(*timerCtrl, TIMER_ENABLE_BIT);
     set_bit(*timerCtrl, TIMER_AUTO_BIT);
+    set_bit(*timerCtrl, TIMER_PRESCALER_BIT);
 
     unsigned int* timerLoad = (unsigned int*)(TIMER_BASE+TIMER_LOAD);
-    *timerLoad = 3*TIMER_FREQUENCY;   //Gives us one second of delay
+    *timerLoad = TIMER_FREQUENCY;   //Gives us one second of delay
 
     set_bit(*timerCtrl, TIMER_ENABLE_BIT);
 }
@@ -346,12 +350,13 @@ int main(int argc, char *argv[])
     VGA vga = *initVGA();
     Game game = initGame();
     loadTimer();
-    while(1){
-        setScreenColor(vga.backBuffer, white);
-        drawGame(vga.backBuffer, game);
+    setScreenColor(vga.backBuffer, white);
 
-        if (checkTimer()){
-            checkForBufferSwitch(vga.status, vga.frontBuffer);
+    while (game.state != Exit) {
+        if (checkTimer()) {
+            setScreenColor(vga.frontBuffer, white);
+            drawGame(vga.frontBuffer, game);
+
         }
-    }
+    }  
 }
