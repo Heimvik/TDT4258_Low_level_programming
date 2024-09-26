@@ -73,8 +73,8 @@ typedef struct VGA {
 typedef struct Block
 {
     unsigned int color;
-    unsigned int xPos;
-    unsigned int yPos;
+    int xPos;
+    int yPos;
     unsigned int width;
     unsigned int height;
 } Block;
@@ -82,8 +82,8 @@ typedef struct Block
 typedef struct Bar
 {
     unsigned int color;
-    unsigned int xPos;
-    unsigned int yPos;
+    int xPos;
+    int yPos;
     unsigned int width;
     unsigned int height;
 } Bar;
@@ -102,8 +102,8 @@ typedef enum Center
 typedef struct Ball
 {
     unsigned int color;
-    unsigned int xPos;
-    unsigned int yPos;
+    int xPos;
+    int yPos;
     unsigned int width;
     unsigned int height;
     Vector direction;
@@ -212,6 +212,9 @@ asm(
     "ldr r5,[r13,#0x1C]\n\t" //height
     "ldr r3,[r13,#0x20]\n\t" //color
 
+    "add r4, r4, #1\n\t"    //We want to draw the block, including the edge
+    "add r5, r5, #1\n\t"    //We want to draw the block, including the edge
+
     "mov r6, r1\n\t" //Initial coordiante of x
     "mov r7, r2\n\t" //initial coordiante of y
     "mov r8, #0x0\n\t" //Iterator for x
@@ -272,7 +275,7 @@ VGA* initVGA(){
     return controller;
 }
 
-Game initGame(){
+Game* initGame(){
     Block** blocks = (Block**)malloc(n_rows*sizeof(Block*));
     for(int i = 0; i < n_rows; i++){
         blocks[i] = (Block*)malloc(n_cols*sizeof(Block));
@@ -297,8 +300,8 @@ Game initGame(){
     };
     Ball ball = (Ball){
         .color = red,
-        .xPos = 100,
-        .yPos = 100,
+        .xPos = 200,
+        .yPos = 50,
         .width = BALL_WIDTH,
         .height = BALL_HEIGHT,
         .direction = (Vector){
@@ -306,7 +309,8 @@ Game initGame(){
             .y = 1
         }
     };
-    Game game = (Game){
+    Game* game = (Game*)malloc(sizeof(Game));
+    *game = (Game){
         .blocks = blocks,
         .bar = bar,
         .ball = ball,
@@ -315,21 +319,22 @@ Game initGame(){
     return game;
 }
 
-void drawGame(unsigned int** buffer, Game game){
+void drawGame(Game* game,unsigned int** buffer){
     for(int i = 0; i < n_rows; i++){
         for(int j = 0; j < n_cols; j++){
-            drawBlock(buffer, game.blocks[i][j].xPos, game.blocks[i][j].yPos, game.blocks[i][j].width, game.blocks[i][j].height, game.blocks[i][j].color);
+            drawBlock(buffer, game->blocks[i][j].xPos, game->blocks[i][j].yPos, game->blocks[i][j].width, game->blocks[i][j].height, game->blocks[i][j].color);
         }
     }
-    drawBlock(buffer, game.bar.xPos, game.bar.yPos, game.bar.width, game.bar.height, game.bar.color);
-    drawBlock(buffer, game.ball.xPos, game.ball.yPos, game.ball.width, game.ball.height, game.ball.color);
+    drawBlock(buffer, game->bar.xPos, game->bar.yPos, game->bar.width, game->bar.height, game->bar.color);
+    drawBlock(buffer, game->ball.xPos, game->ball.yPos, game->ball.width, game->ball.height, game->ball.color);
 }
 
-Block* getBlockAt(unsigned int x, unsigned int y, Game game){
+Block* getBlockAt(Game* game, unsigned int x, unsigned int y){
     for(int i = 0; i < n_rows; i++){
         for(int j = 0; j < n_cols; j++){
-            if(x >= game.blocks[i][j].xPos && x <= game.blocks[i][j].xPos+game.blocks[i][j].width && y >= game.blocks[i][j].yPos && y <= game.blocks[i][j].yPos+game.blocks[i][j].height){
-                return &game.blocks[i][j];
+            if((x >= game->blocks[i][j].xPos && x <= game->blocks[i][j].xPos+game->blocks[i][j].width && y >= game->blocks[i][j].yPos && y <= game->blocks[i][j].yPos+game->blocks[i][j].height) 
+            && game->blocks[i][j].color == black){
+                return &game->blocks[i][j];
             }
         }
     }
@@ -337,46 +342,69 @@ Block* getBlockAt(unsigned int x, unsigned int y, Game game){
 }
 
 Center getCenter(int i, int j) {
-    if(j==0 && i==1){
+    if(j==0 && i==0){
         return UPPER;
-    } else if(j==0 && i==2){
+    } else if(j==0 && i==1){
         return RIGHT;
-    } else if(j==1 && i==1){
+    } else if(j==1 && i==0){
         return LEFT;
-    } else if(j==1 && i==2){
+    } else if(j==1 && i==1){
         return LOWER;
     }
     return NONE;
 }
 
-Block* checkBallForHits(Game game){
+Center* checkBallForHits(Game* game, unsigned int** frontBuffer){
     //Iterate through all corner pixels of the ball, checking for overlaps with blocks
-    Center centersHit[4];
+    Center* centersHit = (Center*)calloc(4,sizeof(Center));
     unsigned int currentHitCount = 0;
+    const unsigned int sensePixelDistance = (unsigned int)(BALL_WIDTH-1)/2;
+    unsigned int senseX;
+    unsigned int senseY;
+    Block* blockHit = NULL;
 
-    for(int i = 1; i<=2;i++){
+    for(int i = 0; i< 2;i++){
         for(int j = 0; j<2;j++){
             if(j == 0){ //Doing double component for x
-                if(getBlockAt(game.ball.xPos+i*((BALL_WIDTH-1)/2), game.ball.yPos+(i-1)*((BALL_HEIGHT-1)/2), game)){
-                    currentHitCount++;
+                senseX = (game->ball.xPos+sensePixelDistance) + (i*(sensePixelDistance+1));
+                senseY = game->ball.yPos+(i*(sensePixelDistance));
+                blockHit = getBlockAt(game, senseX, senseY);
+                if(blockHit != NULL){
+                    blockHit->color = white;
+
                     centersHit[currentHitCount] = getCenter(i, j);
+                    currentHitCount++;
                 }
             } else if (j == 1){ //Doing double component for y
-                if(getBlockAt(game.ball.xPos+(i-1)*((BALL_WIDTH-1)/2), game.ball.yPos+i*((BALL_HEIGHT-1)/2), game)){
-                    currentHitCount++;
+                senseX = game->ball.xPos+(i*(sensePixelDistance));
+                senseY = (game->ball.yPos+sensePixelDistance) + (i*(sensePixelDistance+1));
+                blockHit = getBlockAt(game, senseX, senseY);
+                if(blockHit != NULL){
+                    blockHit->color = white;
+
                     centersHit[currentHitCount] = getCenter(i, j);
+                    currentHitCount++;
                 }
             }
         }
     }
-
+    return centersHit;
+}
+Vector assignBlockHitDirection(Game* game, Center* centersHit){
+    //Find the number of centers hit
+    unsigned int currentHitCount = 0;
+    for(int i = 0; i<4; i++){
+        if(centersHit[i] != NONE){
+            currentHitCount++;
+        }
+    }
     //Calculate the new direction of the ball based off the center hits
-    Vector currentDirection = game.ball.direction;
+    Vector currentDirection = game->ball.direction;
     Vector newDirection = (Vector){0,0};
     switch (currentHitCount)
     {
     case 0:
-        return NULL;
+        newDirection = (Vector){currentDirection.x, currentDirection.y};
     case 1:
         switch (centersHit[0])
         {
@@ -397,7 +425,16 @@ Block* checkBallForHits(Game game){
         }
         break;
     case 2:
-        
+        //Corner hit, reverse both directions
+        newDirection = (Vector){-currentDirection.x, -currentDirection.y};
+        break;
+    }
+    return newDirection;
+}
+
+void moveBall(Game* game){
+    game->ball.xPos += game->ball.direction.x;
+    game->ball.yPos += game->ball.direction.y;
 }
 
 void freeResources(){
@@ -422,14 +459,14 @@ int checkTimer(){
         return 0;
     }
 }
-void loadTimer(){
+void loadTimer(unsigned int frequency){
     unsigned int* timerCtrl = (unsigned int*)(TIMER_BASE+TIMER_CONTROL);
     clear_bit(*timerCtrl, TIMER_ENABLE_BIT);
     set_bit(*timerCtrl, TIMER_AUTO_BIT);
     set_bit(*timerCtrl, TIMER_PRESCALER_BIT);
 
     unsigned int* timerLoad = (unsigned int*)(TIMER_BASE+TIMER_LOAD);
-    *timerLoad = TIMER_FREQUENCY;   //Gives us one second of delay
+    *timerLoad = ((unsigned int)TIMER_FREQUENCY)/frequency;
 
     set_bit(*timerCtrl, TIMER_ENABLE_BIT);
 }
@@ -439,16 +476,28 @@ void loadTimer(){
 
 int main(int argc, char *argv[])
 {
-    VGA vga = *initVGA();
-    Game game = initGame();
-    loadTimer();
-    setScreenColor(vga.backBuffer, white);
+    VGA* vga = initVGA();
+    Game* game = initGame();
+    loadTimer(60);
+    setScreenColor(vga->backBuffer, white);
+    drawGame(game, vga->frontBuffer);
+    Center* centerHits = checkBallForHits(game,vga->frontBuffer);
 
-    while (game.state != Exit) {
+    while (game->state != Exit) {
         if (checkTimer()) {
-            setScreenColor(vga.frontBuffer, white);
-            drawGame(vga.frontBuffer, game);
+            centerHits = checkBallForHits(game,vga->frontBuffer);
+            Vector newDirection = assignBlockHitDirection(game, centerHits);
+            game->ball.direction = newDirection;
+            moveBall(game);
+            drawGame(game,vga->frontBuffer);
 
         }
     }  
+    free(centerHits);
+    for(int i = 0; i < n_rows; i++){
+        free(game->blocks[i]);
+    }
+    free(game->blocks);
+    free(game);
+    free(vga);
 }
