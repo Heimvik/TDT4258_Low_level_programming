@@ -635,7 +635,7 @@ void updateBallDirection(Game* game, HitPoint* hitPoints){
                         game->ball.direction = (Vector){-1, 0};
                         break;
                     }
-                break;
+                    break;
             case ITEM_MIDBAR:
                 game->ball.direction = (Vector){1,0};
                 break;
@@ -684,22 +684,22 @@ void handleInput(Game* game, unsigned int** buffer){
                     game->bars[i].direction.y = 0;
                 }   
 >>>>>>> dev_walls
-        }
-        for(int i = 0; i < 3; i++){
-            moveItem(&(game->bars[i]), buffer);
-        }
+            }
+            for(int i = 0; i < 3; i++){
+                moveItem(&(game->bars[i]), buffer);
+            }
             break;
         case 's':
-        for(int i = 0; i < 3; i++){
+            for(int i = 0; i < 3; i++){
                 if(game->bars->yPos+(game->bars->height*NUM_BARS) < VGA_HEIGHT && game->bars[i].direction.y < 5 && game->bars[i].direction.y > -5){
-                game->bars[i].direction.y += 5;
+                    game->bars[i].direction.y += 5;
                 } else {
                     game->bars[i].direction.y = 0;
+                }
             }
-        }
-        for(int i = 2; i >= 0; i--){
-            moveItem(&(game->bars[i]), buffer);
-        }
+            for(int i = 2; i >= 0; i--){
+                moveItem(&(game->bars[i]), buffer);
+            }
             break;
         case 'd':
             if(game->speed < 10000){
@@ -714,9 +714,9 @@ void handleInput(Game* game, unsigned int** buffer){
             }
             break;
         default:
-        for(int i = 0; i < 3; i++){
-            game->bars[i].direction.y = 0;
-        }
+            for(int i = 0; i < 3; i++){
+               game->bars[i].direction.y = 0;
+            }
             break;
     }
 }
@@ -725,11 +725,11 @@ void updateBlocks(HitPoint* hitPoints, unsigned int** buffer){
     for(int i = 0; i < MAX_HITPOINTS; i++){
         if(hitPoints[i].item->type != NULL){
             if(hitPoints[i].item->type == ITEM_BLOCK){
-            hitPoints[i].item->color = white;
-            drawBlock(buffer, hitPoints[i].item->xPos, hitPoints[i].item->yPos, hitPoints[i].item->width, hitPoints[i].item->height, hitPoints[i].item->color);
+                hitPoints[i].item->color = white;
+                drawBlock(buffer, hitPoints[i].item->xPos, hitPoints[i].item->yPos, hitPoints[i].item->width, hitPoints[i].item->height, hitPoints[i].item->color);
+            }
         }
     }
-}
 }
 
 void moveItem(Item* item,unsigned int** buffer){
@@ -840,7 +840,7 @@ int main(int argc, char *argv[])
                         mainTimer = END_TIME;
                         emptyCharBuffer();
                         setScreenColor(vga->frontBuffer, white);
-    drawGame(game,vga->frontBuffer);
+                        drawGame(game,vga->frontBuffer);
                         game->state = GAMESTATE_RUNNING;
                         game->speed = 60;
                         loadTimer(game->speed);
@@ -852,15 +852,15 @@ int main(int argc, char *argv[])
                 }
                 break;
             case GAMESTATE_RUNNING:
-        if (checkTimer()) {
-            updateHitPoints(game,vga->frontBuffer,hitPoints);
-            updateBallDirection(game, hitPoints);
+                if (checkTimer()) {
+                    updateHitPoints(game,vga->frontBuffer,hitPoints);
+                    updateBallDirection(game, hitPoints);
                     handleInput(game, vga->frontBuffer);
 
-            updateBlocks(hitPoints, vga->frontBuffer);
+                    updateBlocks(hitPoints, vga->frontBuffer);
 
-            moveItem(&(game->ball), vga->frontBuffer);
-        }
+                    moveItem(&(game->ball), vga->frontBuffer);
+                }
                 break;
             case GAMESTATE_WON:
                 if(checkTimer()){
