@@ -150,6 +150,8 @@ void setPixel(unsigned int** backBuffer, unsigned int xCoord, unsigned int yCoor
 //Game-level declarations
 void drawBlock(unsigned int** backBuffer, unsigned int xCoord, unsigned int yCoord, unsigned int width, unsigned int height, unsigned int color);
 void drawBar(unsigned int** backBuffer,unsigned int y);
+void drawGame(Game* game, unsigned int** buffer);
+void moveItem(Item* item, unsigned int** buffer);
 
 //VGA declarations
 struct VGA* initVGA();
@@ -303,7 +305,7 @@ Game* initGame(){
             };
         }
     }
-    Item* bars = (Item*)malloc(3*sizeof(Item));
+    volatile Item* bars = (Item*)malloc(3*sizeof(Item));
     bars[0]=(Item){
         .type = ITEMTYPE_UPPERBAR,
         .color = blue,
@@ -315,16 +317,16 @@ Game* initGame(){
     bars[1] = (Item){
         .type = ITEMTYPE_MIDBAR,
         .color = green,
-        .xPos = bars->xPos,
-        .yPos = bars->yPos+BAR_UNIT_HEIGHT,
+        .xPos = bars[0].xPos,
+        .yPos = bars[0].yPos+BAR_UNIT_HEIGHT,
         .width = BAR_WIDTH,
         .height = BAR_UNIT_HEIGHT
     };
     bars[2] = (Item){
         .type = ITEMTYPE_LOWERBAR,
         .color = blue,
-        .xPos = bars->xPos,
-        .yPos = bars->yPos+(2*BAR_UNIT_HEIGHT),
+        .xPos = bars[0].xPos,
+        .yPos = bars[0].yPos+(2*BAR_UNIT_HEIGHT),
         .width = BAR_WIDTH,
         .height = BAR_UNIT_HEIGHT
     };
@@ -341,7 +343,7 @@ Game* initGame(){
             .y = 1
         }
     };
-    Game* game = (Game*)malloc(sizeof(Game));
+    volatile Game* game = (Game*)malloc(sizeof(Game));
     *game = (Game){
         .blocks = blocks,
         .bars = bars,
@@ -360,6 +362,7 @@ void drawGame(Game* game,unsigned int** buffer){
     for(int i = 0; i < 3; i++){
         drawBlock(buffer, game->bars[i].xPos, game->bars[i].yPos, game->bars[i].width, game->bars[i].height, game->bars[i].color);
     }
+    drawBlock(buffer, game->ball.xPos, game->ball.yPos, game->ball.width, game->ball.height, game->ball.color);
 }
 
 Item* getItemAt(Game* game, unsigned int x, unsigned int y){
@@ -421,7 +424,7 @@ HitPoint* updateHitPoints(Game* game, unsigned int** frontBuffer, HitPoint* hitP
     }
     return hitPoints;
 }
-void updateBallDirection(Game* game, HitPoint* hitPoints, Vector* newDirection){
+void updateBallDirection(Game* game, HitPoint* hitPoints){
     //Find the number of centers hit
     unsigned int currentHitCount = 0;
     for(int i = 0; i < MAX_HITPOINTS; i++){
@@ -436,59 +439,79 @@ void updateBallDirection(Game* game, HitPoint* hitPoints, Vector* newDirection){
                 switch (currentHitCount)
                     {
                     case 0:
-                        *newDirection = (Vector){currentDirection.x, currentDirection.y};
+                        game->ball.direction = (Vector){currentDirection.x, currentDirection.y};
                     case 1:
                         switch (hitPoints[0].point)
                         {
                         case UPPER:
-                            *newDirection = (Vector){currentDirection.x, -currentDirection.y};
+                            game->ball.direction = (Vector){currentDirection.x, -currentDirection.y};
                             break;
                         case LOWER:
-                            *newDirection = (Vector){currentDirection.x, -currentDirection.y};
+                            game->ball.direction = (Vector){currentDirection.x, -currentDirection.y};
                             break;
                         case RIGHT:
-                            *newDirection = (Vector){-currentDirection.x, currentDirection.y};
+                            game->ball.direction = (Vector){-currentDirection.x, currentDirection.y};
                             break;
                         case LEFT:
-                            *newDirection = (Vector){-currentDirection.x, currentDirection.y};
+                            game->ball.direction = (Vector){-currentDirection.x, currentDirection.y};
                             break;
                         default:
                             break;
                         }
                         break;
                     case 2:
-                        *newDirection = (Vector){-currentDirection.x, -currentDirection.y};
+                        game->ball.direction = (Vector){-currentDirection.x, -currentDirection.y};
                         break;
                     }
             case ITEMTYPE_MIDBAR:
-                *newDirection = (Vector){-currentDirection.x, currentDirection.y};
+                game->ball.direction = (Vector){-currentDirection.x, currentDirection.y};
                 break;
             case ITEMTYPE_UPPERBAR:
-                *newDirection = (Vector){1, 1};
+                game->ball.direction = (Vector){1, 1};
                 break;
             case ITEMTYPE_LOWERBAR:
-                *newDirection = (Vector){1, -1};
+                game->ball.direction = (Vector){1, -1};
                 break;
             default:
                 break;
         }
     }
-    game->ball.direction = *newDirection;
 }
 
-void updateBarDirection(Game* game){
+void updateBarDirection(Game* game, unsigned int** buffer){
     char input = uartReadChar();
+    char hasMoved = 0;
     if(input == 'w'){
-        game->bars->yPos -= 5;
+        for(int i = 0; i < 3; i++){
+            if(game->bars[i].yPos > 0){
+                game->bars[i].direction.y -= 5;
+            }
+            
+        }
+        for(int i = 0; i < 3; i++){
+            moveItem(&(game->bars[i]), buffer);
+        }
     } else if(input == 's'){
-        game->bars->yPos += 5;
+        for(int i = 0; i < 3; i++){
+            if(game->bars[i].yPos+game->bars[i].height < VGA_HEIGHT){
+                game->bars[i].direction.y += 5;
+            }
+        }
+        for(int i = 2; i >= 0; i--){
+            moveItem(&(game->bars[i]), buffer);
+        }
+    } else {
+        for(int i = 0; i < 3; i++){
+            game->bars[i].direction.y = 0;
+        }
     }
 }
 
-void updateBlocks(HitPoint* hitPoints){
+void updateBlocks(HitPoint* hitPoints, unsigned int** buffer){
     for(int i = 0; i < MAX_HITPOINTS; i++){
-        if(hitPoints[i].item->type != ITEMTYPE_BLOCK){
+        if(hitPoints[i].item->type == ITEMTYPE_BLOCK){
             hitPoints[i].item->color = white;
+            drawBlock(buffer, hitPoints[i].item->xPos, hitPoints[i].item->yPos, hitPoints[i].item->width, hitPoints[i].item->height, hitPoints[i].item->color);
         }
     }
 }
@@ -548,29 +571,23 @@ int main(int argc, char *argv[])
     VGA* vga = initVGA();
     Game* game = initGame();
     loadTimer(60);
-    setScreenColor(vga->backBuffer, white);
-    drawGame(game, vga->frontBuffer);
     HitPoint* hitPoints = (HitPoint*)calloc(MAX_HITPOINTS,sizeof(HitPoint));
-    Vector* newDirection = (Vector*)calloc(1,sizeof(Vector));
-    *newDirection = (Vector){1,1};
+
+    setScreenColor(vga->backBuffer, white);
+    drawGame(game,vga->frontBuffer);
 
     while (game->state != Exit) {
         if (checkTimer()) {
             updateHitPoints(game,vga->frontBuffer,hitPoints);
-            updateBallDirection(game, hitPoints, newDirection);
-            updateBarDirection(game);
+            updateBallDirection(game, hitPoints);
+            updateBarDirection(game,vga->frontBuffer);
 
-            updateBlocks(hitPoints);
+            updateBlocks(hitPoints, vga->frontBuffer);
 
             moveItem(&(game->ball), vga->frontBuffer);
-            for(int i = 0; i < 3; i++){
-                moveItem(&(game->bars[i]), vga->frontBuffer);
-            }
-            drawGame(game,vga->frontBuffer);
         }
     }  
     free(hitPoints);
-    free(newDirection);
     for(int i = 0; i < n_rows; i++){
         free(game->blocks[i]);
     }
