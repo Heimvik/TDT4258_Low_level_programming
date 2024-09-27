@@ -52,8 +52,9 @@
 #define MAX_HITPOINTS 4
 #define MOVING_ITEMS_COUNT 2
 
-#define JTAG_UART_DATA_REG    (*((volatile unsigned int *) 0xFF201000))
-#define JTAG_UART_CONTROL_REG (*((volatile unsigned int *) 0xFF201004))
+#define JTAG_UART_BASE 0xFF201000
+#define JTAG_UART_DATA 0x0
+#define JTAG_UART_CONTROL 0x4
 #define RVALID_BIT    15
 #define WSPACE_START  16
 
@@ -70,7 +71,7 @@ unsigned int __attribute__((used)) blue = 0x000000FF;
 unsigned int __attribute__((used)) white = 0x0000FFFF;
 unsigned int __attribute__((used)) black = 0x0;
 
-const unsigned char n_cols = 2; // <- This variable might change depending on the size of the game. Supported value range: [1,18]
+const unsigned char n_cols = 8; // <- This variable might change depending on the size of the game. Supported value range: [1,18]
 unsigned char n_rows = 15;
 
 char *won = "You Won";       // DON'T TOUCH THIS - keep the string as is
@@ -98,15 +99,15 @@ typedef struct VGA {
 } VGA;
 typedef enum ItemType
 {
-    ITEMTYPE_NONE,
-    ITEMTYPE_BLOCK,
-    ITEMTYPE_UPPERBAR,
-    ITEMTYPE_MIDBAR,
-    ITEMTYPE_LOWERBAR,
-    ITEMTYPE_BALL,
-    ITEMTYPE_BOUNDARY_WALL,
-    ITEMTYPE_WINNING_WALL,
-    ITEMTYPE_LOSING_WALL,
+    ITEM_NONE,
+    ITEM_BLOCK,
+    ITEM_UPPERBAR,
+    ITEM_MIDBAR,
+    ITEM_LOWERBAR,
+    ITEM_BALL,
+    ITEM_BOUNDARY_WALL,
+    ITEM_WINNING_WALL,
+    ITEM_LOSING_WALL,
 } ItemType;
 typedef struct Item
 {
@@ -121,7 +122,7 @@ typedef struct Item
 
 typedef enum Point
 {
-    NONE,UPPER,LOWER,RIGHT,LEFT,
+    POINT_NONE,POINT_UPPER_RIGHT,POINT_UPPER_LEFT,POINT_LOWER_RIGHT,POINT_LOWER_LEFT
 }Point;
 
 typedef struct HitPoint
@@ -311,7 +312,7 @@ Game* initGame(){
         for(int j = 0; j < n_cols; j++){
             unsigned int blockHeight;
             blocks[i][j] = (Item){
-                .type = ITEMTYPE_BLOCK,
+                .type = ITEM_BLOCK,
                 .color = rgbToColor(255-(10*i),(10*i),(10*j)),
                 .xPos = BLOCK_BASE-(j*(BLOCK_WIDTH+2))-BLOCK_OFFSET,
                 .yPos = 1+i*(BLOCK_HEIGHT+1),
@@ -322,7 +323,7 @@ Game* initGame(){
     }
     volatile Item* bars = (Item*)malloc(3*sizeof(Item));
     bars[0]=(Item){
-        .type = ITEMTYPE_UPPERBAR,
+        .type = ITEM_UPPERBAR,
         .color = blue,
         .xPos = BAR_OFFSET,
         .yPos = 0,
@@ -330,7 +331,7 @@ Game* initGame(){
         .height = BAR_UNIT_HEIGHT
     };
     bars[1] = (Item){
-        .type = ITEMTYPE_MIDBAR,
+        .type = ITEM_MIDBAR,
         .color = green,
         .xPos = bars[0].xPos,
         .yPos = bars[0].yPos+BAR_UNIT_HEIGHT,
@@ -338,7 +339,7 @@ Game* initGame(){
         .height = BAR_UNIT_HEIGHT
     };
     bars[2] = (Item){
-        .type = ITEMTYPE_LOWERBAR,
+        .type = ITEM_LOWERBAR,
         .color = blue,
         .xPos = bars[0].xPos,
         .yPos = bars[0].yPos+(2*BAR_UNIT_HEIGHT),
@@ -347,10 +348,10 @@ Game* initGame(){
     };
 
     Item ball = (Item){
-        .type = ITEMTYPE_BALL,
+        .type = ITEM_BALL,
         .color = red,
-        .xPos = 200,
-        .yPos = 70,
+        .xPos = 50,
+        .yPos = 50,
         .width = BALL_WIDTH,
         .height = BALL_HEIGHT,
         .direction = (Vector){
@@ -361,7 +362,7 @@ Game* initGame(){
 
     volatile Item* walls = (Item*)malloc(4*sizeof(Item));
     walls[0] = (Item){
-        .type = ITEMTYPE_BOUNDARY_WALL,
+        .type = ITEM_BOUNDARY_WALL,
         .color = white,
         .xPos = 0,
         .yPos = 0,
@@ -369,7 +370,7 @@ Game* initGame(){
         .height = 1
     };
     walls[1] = (Item){
-        .type = ITEMTYPE_BOUNDARY_WALL,
+        .type = ITEM_BOUNDARY_WALL,
         .color = white,
         .xPos = 0,
         .yPos = VGA_HEIGHT-1,
@@ -377,7 +378,7 @@ Game* initGame(){
         .height = 1
     };
     walls[2] = (Item){
-        .type = ITEMTYPE_WINNING_WALL,
+        .type = ITEM_WINNING_WALL,
         .color = rgbToColor(0,255,0),
         .xPos = VGA_WIDTH-1,
         .yPos = 0,
@@ -385,7 +386,7 @@ Game* initGame(){
         .height = VGA_HEIGHT
     };
     walls[3] = (Item){
-        .type = ITEMTYPE_LOSING_WALL,
+        .type = ITEM_LOSING_WALL,
         .color = rgbToColor(255,0,0),
         .xPos = 0,
         .yPos = 0,
@@ -453,34 +454,31 @@ Item* getItemAt(Game* game, unsigned int x, unsigned int y){
 
 Point getPoint(int i, int j) {
     if(j==0 && i==0){
-        return UPPER;
-    } else if(j==0 && i==1){
-        return RIGHT;
+        return POINT_UPPER_LEFT;
     } else if(j==1 && i==0){
-        return LEFT;
+        return POINT_LOWER_LEFT;
+    } else if(j==0 && i==1){
+        return POINT_UPPER_RIGHT;
     } else if(j==1 && i==1){
-        return LOWER;
+        return POINT_LOWER_RIGHT;
     }
-    return NONE;
+    return POINT_NONE;
 }
 
 HitPoint* updateHitPoints(Game* game, unsigned int** frontBuffer, HitPoint* hitPoints){
     //Iterate through all corner pixels of the ball, checking for overlaps with blocks
     unsigned int currentHitCount = 0;
-    const unsigned int sensePixelDistance = (unsigned int)(BALL_WIDTH-1)/2;
+    const unsigned int sensePixelDistance = (unsigned int)(BALL_WIDTH);
     unsigned int senseX = 0;
     unsigned int senseY = 0;
+    unsigned int currOuterX = game->ball.xPos;
+    unsigned int currOuterY = game->ball.yPos;
 
     for(int i = 0; i< 2;i++){
         for(int j = 0; j<2;j++){
-            if(j == 0){ //Doing double component for x
-                senseX = (game->ball.xPos+sensePixelDistance) + (i*(sensePixelDistance+1));
-                senseY = game->ball.yPos+(i*(sensePixelDistance));
-            } 
-            else if (j == 1){ //Doing double component for y
-                senseX = game->ball.xPos+(i*(sensePixelDistance));
-                senseY = (game->ball.yPos+sensePixelDistance) + (i*(sensePixelDistance+1));
-            }
+            senseX = currOuterX + (i*(sensePixelDistance));
+            senseY = currOuterY + (j*(sensePixelDistance));
+
             hitPoints[currentHitCount] = (HitPoint){
                 .point = getPoint(i,j),
                 .item = getItemAt(game, senseX, senseY)
@@ -498,57 +496,50 @@ void updateBallDirection(Game* game, HitPoint* hitPoints){
     for(int i = 0; i < MAX_HITPOINTS; i++){
         if(hitPoints[i].item != NULL){
             currentHitCount++;
-            uartWriteChar((char)currentHitCount);
         }
     }
     Vector currentDirection = game->ball.direction;
     if(hitPoints[0].item != NULL){
         switch(hitPoints[0].item->type){
-            case ITEMTYPE_BLOCK:
+            case ITEM_BLOCK:
                 switch (currentHitCount)
                     {
                     case 0:
                         game->ball.direction = (Vector){currentDirection.x, currentDirection.y};
-                    case 1:
-                        switch (hitPoints[0].point)
-                        {
-                        case UPPER:
-                            game->ball.direction = (Vector){currentDirection.x, -currentDirection.y};
-                            break;
-                        case LOWER:
-                            game->ball.direction = (Vector){currentDirection.x, -currentDirection.y};
-                            break;
-                        case RIGHT:
-                            game->ball.direction = (Vector){-currentDirection.x, currentDirection.y};
-                            break;
-                        case LEFT:
-                            game->ball.direction = (Vector){-currentDirection.x, currentDirection.y};
-                            break;
-                        default:
-                            break;
-                        }
                         break;
-                    case 2:
+                    case 1:
                         game->ball.direction = (Vector){-currentDirection.x, -currentDirection.y};
                         break;
+                    case 2:
+                        if(hitPoints[0].point == POINT_UPPER_LEFT && hitPoints[1].point == POINT_LOWER_LEFT){
+                            game->ball.direction = (Vector){-currentDirection.x, currentDirection.y};
+                        } else if (hitPoints[0].point == POINT_UPPER_RIGHT && hitPoints[1].point == POINT_LOWER_RIGHT){
+                            game->ball.direction = (Vector){-currentDirection.x, currentDirection.y};
+                        } else if (hitPoints[0].point == POINT_UPPER_LEFT && hitPoints[1].point == POINT_UPPER_RIGHT){
+                            game->ball.direction = (Vector){currentDirection.x, -currentDirection.y};
+                        } else if (hitPoints[0].point == POINT_LOWER_LEFT && hitPoints[1].point == POINT_LOWER_RIGHT){
+                            game->ball.direction = (Vector){currentDirection.x, -currentDirection.y};
+                        }
+                        break;
                     }
-            case ITEMTYPE_MIDBAR:
-                game->ball.direction = (Vector){-currentDirection.x, currentDirection.y};
+                    break;
+            case ITEM_MIDBAR:
+                game->ball.direction = (Vector){1,0};
                 break;
-            case ITEMTYPE_UPPERBAR:
+            case ITEM_UPPERBAR:
                 game->ball.direction = (Vector){1, 1};
                 break;
-            case ITEMTYPE_LOWERBAR:
+            case ITEM_LOWERBAR:
                 game->ball.direction = (Vector){1, -1};
                 break;
-            case ITEMTYPE_BOUNDARY_WALL:
+            case ITEM_BOUNDARY_WALL:
                 game->ball.direction = (Vector){currentDirection.x, -currentDirection.y};
                 break;
-            case ITEMTYPE_WINNING_WALL:
+            case ITEM_WINNING_WALL:
                 game->ball.direction = (Vector){0,0};
                 game->state = Won;
                 break;
-            case ITEMTYPE_LOSING_WALL:
+            case ITEM_LOSING_WALL:
                 game->ball.direction = (Vector){0,0};
                 game->state = Lost;
                 break;
@@ -588,7 +579,7 @@ void updateBarDirection(Game* game, unsigned int** buffer){
 
 void updateBlocks(HitPoint* hitPoints, unsigned int** buffer){
     for(int i = 0; i < MAX_HITPOINTS; i++){
-        if(hitPoints[i].item->type == ITEMTYPE_BLOCK){
+        if(hitPoints[i].item->type == ITEM_BLOCK){
             hitPoints[i].item->color = white;
             drawBlock(buffer, hitPoints[i].item->xPos, hitPoints[i].item->yPos, hitPoints[i].item->width, hitPoints[i].item->height, hitPoints[i].item->color);
         }
@@ -627,8 +618,8 @@ void loadTimer(unsigned int frequency){
 
 // Function to write a character to the JTAG UART
 void uartWriteChar(char c) {
-    while (((JTAG_UART_CONTROL_REG >> WSPACE_START) & 0xFFFF) == 0) {}
-    JTAG_UART_DATA_REG = (unsigned int) c;
+    unsigned int* uartData = (unsigned int*)(JTAG_UART_BASE + JTAG_UART_DATA);
+    uartData = (unsigned int) c;
 }
 
 void uartWriteString(const char* str) {
@@ -638,8 +629,9 @@ void uartWriteString(const char* str) {
     }
 }
 char uartReadChar() {
-    if(check_bit(JTAG_UART_DATA_REG, RVALID_BIT)) {
-        return (char)(JTAG_UART_DATA_REG & 0xFF);
+    unsigned int* uartData = (unsigned int*)(JTAG_UART_BASE + JTAG_UART_DATA);
+    if(check_bit(*uartData, RVALID_BIT)) {
+        return (char)(*uartData & 0xFF);
     } else {
         return '\0';
     }
@@ -653,7 +645,7 @@ int main(int argc, char *argv[])
     HitPoint* hitPoints = (HitPoint*)calloc(MAX_HITPOINTS,sizeof(HitPoint));
     uartWriteString("Game started\n");
 
-    setScreenColor(vga->backBuffer, white);
+    setScreenColor(vga->frontBuffer, white);
     drawGame(game,vga->frontBuffer);
 
     while (game->state != Exit) {
