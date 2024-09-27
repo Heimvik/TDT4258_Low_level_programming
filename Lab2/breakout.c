@@ -626,7 +626,7 @@ void updateBallDirection(Game* game, HitPoint* hitPoints){
                         }
                         break;
                     case 4:
-                        game->ball.direction = (Vector){-currentDirection.x, currentDirection.y};
+                        game->ball.direction = (Vector){-1, 0};
                         break;
                     }
                     break;
