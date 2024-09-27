@@ -96,7 +96,6 @@ typedef enum ItemType
     ITEMTYPE_MIDBAR,
     ITEMTYPE_LOWERBAR,
     ITEMTYPE_BALL,
-    ITEMTYPE_WALL,
 } ItemType;
 typedef struct Item
 {
@@ -133,7 +132,6 @@ typedef struct Game
 {
     Item** blocks;
     Item* bars;
-    Item* walls;
     Item ball;
     GameState state;
 } Game;
@@ -154,7 +152,6 @@ void drawBlock(unsigned int** backBuffer, unsigned int xCoord, unsigned int yCoo
 void drawBar(unsigned int** backBuffer,unsigned int y);
 void drawGame(Game* game, unsigned int** buffer);
 void moveItem(Item* item, unsigned int** buffer);
-unsigned int rgbToColor(unsigned char r, unsigned char g, unsigned char b);
 
 //VGA declarations
 struct VGA* initVGA();
@@ -291,7 +288,7 @@ VGA* initVGA(){
 }
 
 Game* initGame(){
-    numItems = (n_rows * n_cols) + 3 + 2 + 1;
+    numItems = (n_rows * n_cols) + 3 + 1;
     Item** blocks = (Item**)malloc(n_rows*sizeof(Item*));
     for(int i = 0; i < n_rows; i++){
         blocks[i] = (Item*)malloc(n_cols*sizeof(Item));
@@ -300,9 +297,9 @@ Game* initGame(){
         for(int j = 0; j < n_cols; j++){
             blocks[i][j] = (Item){
                 .type = ITEMTYPE_BLOCK,
-                .color = rgbToColor(10*i,j*10,255-(10*i)),
+                .color = black,
                 .xPos = BLOCK_BASE-(j*(BLOCK_WIDTH+2)),
-                .yPos = i*(BLOCK_HEIGHT+1),
+                .yPos = 1+i*(BLOCK_HEIGHT+1),
                 .width = BLOCK_WIDTH,
                 .height = BLOCK_HEIGHT
             };
@@ -334,24 +331,6 @@ Game* initGame(){
         .height = BAR_UNIT_HEIGHT
     };
 
-    volatile Item* walls = (Item*)malloc(2*sizeof(Item));
-    walls[0] = (Item){
-        .type = ITEMTYPE_WALL,
-        .color = black,
-        .xPos = 0,
-        .yPos = 0,
-        .width = VGA_WIDTH,
-        .height = 1
-    };
-    walls[1] = (Item){
-        .type = ITEMTYPE_WALL,
-        .color = black,
-        .xPos = 0,
-        .yPos = VGA_HEIGHT-1,
-        .width = VGA_WIDTH,
-        .height = 1
-    };
-
     Item ball = (Item){
         .type = ITEMTYPE_BALL,
         .color = red,
@@ -369,14 +348,9 @@ Game* initGame(){
         .blocks = blocks,
         .bars = bars,
         .ball = ball,
-        .walls = walls,
         .state = Stopped
     };
     return game;
-}
-
-unsigned int rgbToColor(unsigned char r, unsigned char g, unsigned char b) {
-    return (r << 16) | (g << 8) | b;
 }
 
 void drawGame(Game* game,unsigned int** buffer){
