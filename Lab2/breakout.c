@@ -5,6 +5,8 @@
 #define clear_bit(reg, bit) reg &= ~(1 << bit)
 #define check_bit(reg, bit) (reg & (1 << bit))
 
+#define RGB_TO_COLOR(r, g, b) (((r) << 16) | ((g) << 8) | (b))
+
 #define N_COLS 2
 #define N_ROWS 15
 
@@ -40,6 +42,12 @@
 #define BAR_UNIT_HEIGHT 15
 #define BALL_WIDTH 7
 #define BALL_HEIGHT 7
+#define BLOCK_OFFSET 5
+#define BAR_OFFSET 5
+
+#define NUM_WALLS 4
+#define NUM_BARS 3
+#define NUM_BALLS
 
 #define MAX_HITPOINTS 4
 #define MOVING_ITEMS_COUNT 2
@@ -96,6 +104,9 @@ typedef enum ItemType
     ITEMTYPE_MIDBAR,
     ITEMTYPE_LOWERBAR,
     ITEMTYPE_BALL,
+    ITEMTYPE_BOUNDARY_WALL,
+    ITEMTYPE_WINNING_WALL,
+    ITEMTYPE_LOSING_WALL,
 } ItemType;
 typedef struct Item
 {
@@ -132,6 +143,7 @@ typedef struct Game
 {
     Item** blocks;
     Item* bars;
+    Item* walls;
     Item ball;
     GameState state;
 } Game;
@@ -146,12 +158,14 @@ typedef struct Game
 //Pixel-level declarations
 void setScreenColor(unsigned int** backBuffer, unsigned int color);
 void setPixel(unsigned int** backBuffer, unsigned int xCoord, unsigned int yCoord, unsigned int color);
+unsigned int rgbToColor(unsigned char r, unsigned char g, unsigned char b);
 
 //Game-level declarations
 void drawBlock(unsigned int** backBuffer, unsigned int xCoord, unsigned int yCoord, unsigned int width, unsigned int height, unsigned int color);
 void drawBar(unsigned int** backBuffer,unsigned int y);
 void drawGame(Game* game, unsigned int** buffer);
 void moveItem(Item* item, unsigned int** buffer);
+
 
 //VGA declarations
 struct VGA* initVGA();
@@ -288,17 +302,18 @@ VGA* initVGA(){
 }
 
 Game* initGame(){
-    numItems = (n_rows * n_cols) + 3 + 1;
+    numItems = (n_rows * n_cols) + NUM_BALLS+NUM_WALLS+NUM_BARS;
     Item** blocks = (Item**)malloc(n_rows*sizeof(Item*));
     for(int i = 0; i < n_rows; i++){
         blocks[i] = (Item*)malloc(n_cols*sizeof(Item));
     }
     for(int i = 0; i < n_rows; i++){
         for(int j = 0; j < n_cols; j++){
+            unsigned int blockHeight;
             blocks[i][j] = (Item){
                 .type = ITEMTYPE_BLOCK,
-                .color = black,
-                .xPos = BLOCK_BASE-(j*(BLOCK_WIDTH+2)),
+                .color = rgbToColor(255-(10*i),(10*i),(10*j)),
+                .xPos = BLOCK_BASE-(j*(BLOCK_WIDTH+2))-BLOCK_OFFSET,
                 .yPos = 1+i*(BLOCK_HEIGHT+1),
                 .width = BLOCK_WIDTH,
                 .height = BLOCK_HEIGHT
@@ -309,7 +324,7 @@ Game* initGame(){
     bars[0]=(Item){
         .type = ITEMTYPE_UPPERBAR,
         .color = blue,
-        .xPos = 0,
+        .xPos = BAR_OFFSET,
         .yPos = 0,
         .width = BAR_WIDTH,
         .height = BAR_UNIT_HEIGHT
@@ -335,7 +350,7 @@ Game* initGame(){
         .type = ITEMTYPE_BALL,
         .color = red,
         .xPos = 200,
-        .yPos = 50,
+        .yPos = 70,
         .width = BALL_WIDTH,
         .height = BALL_HEIGHT,
         .direction = (Vector){
@@ -343,10 +358,45 @@ Game* initGame(){
             .y = 1
         }
     };
+
+    volatile Item* walls = (Item*)malloc(4*sizeof(Item));
+    walls[0] = (Item){
+        .type = ITEMTYPE_BOUNDARY_WALL,
+        .color = white,
+        .xPos = 0,
+        .yPos = 0,
+        .width = VGA_WIDTH,
+        .height = 1
+    };
+    walls[1] = (Item){
+        .type = ITEMTYPE_BOUNDARY_WALL,
+        .color = white,
+        .xPos = 0,
+        .yPos = VGA_HEIGHT-1,
+        .width = VGA_WIDTH,
+        .height = 1
+    };
+    walls[2] = (Item){
+        .type = ITEMTYPE_WINNING_WALL,
+        .color = rgbToColor(0,255,0),
+        .xPos = VGA_WIDTH-1,
+        .yPos = 0,
+        .width = 1,
+        .height = VGA_HEIGHT
+    };
+    walls[3] = (Item){
+        .type = ITEMTYPE_LOSING_WALL,
+        .color = rgbToColor(255,0,0),
+        .xPos = 0,
+        .yPos = 0,
+        .width = 1,
+        .height = VGA_HEIGHT
+    };
     volatile Game* game = (Game*)malloc(sizeof(Game));
     *game = (Game){
         .blocks = blocks,
         .bars = bars,
+        .walls = walls,
         .ball = ball,
         .state = Stopped
     };
@@ -359,25 +409,43 @@ void drawGame(Game* game,unsigned int** buffer){
             drawBlock(buffer, game->blocks[i][j].xPos, game->blocks[i][j].yPos, game->blocks[i][j].width, game->blocks[i][j].height, game->blocks[i][j].color);
         }
     }
-    for(int i = 0; i < 3; i++){
+    for(int i = 0; i < NUM_BARS; i++){
         drawBlock(buffer, game->bars[i].xPos, game->bars[i].yPos, game->bars[i].width, game->bars[i].height, game->bars[i].color);
+    }
+    for(int i = 0; i<NUM_WALLS; i++){
+        drawBlock(buffer, game->walls[i].xPos, game->walls[i].yPos, game->walls[i].width, game->walls[i].height, game->walls[i].color);
     }
     drawBlock(buffer, game->ball.xPos, game->ball.yPos, game->ball.width, game->ball.height, game->ball.color);
 }
+
+
+unsigned int rgbToColor(unsigned char r, unsigned char g, unsigned char b) {
+    r = r & 0x1F; 
+    g = g & 0x3F; 
+    b = b & 0x1F; 
+
+    return (r << 11) | (g << 5) | (b);
+}
+
 
 Item* getItemAt(Game* game, unsigned int x, unsigned int y){
     Item* item = NULL;
     for(int i = 0; i < n_rows; i++){
         for(int j = 0; j < n_cols; j++){
             if((x >= game->blocks[i][j].xPos && x <= game->blocks[i][j].xPos+game->blocks[i][j].width && y >= game->blocks[i][j].yPos && y <= game->blocks[i][j].yPos+game->blocks[i][j].height) 
-            && game->blocks[i][j].color == black){
+            && game->blocks[i][j].color != white){
                 item = &game->blocks[i][j];
             }
         }
     }
-    for(int i = 0; i < 3; i++){
+    for(int i = 0; i < NUM_BARS; i++){
         if(x >= game->bars[i].xPos && x <= game->bars[i].xPos+game->bars[i].width && y >= game->bars[i].yPos && y <= game->bars[i].yPos+game->bars[i].height){
             item = &game->bars[i];
+        }
+    }
+    for (int i = 0; i < NUM_WALLS; i++){
+        if(x >= game->walls[i].xPos && x <= game->walls[i].xPos+game->walls[i].width && y >= game->walls[i].yPos && y <= game->walls[i].yPos+game->walls[i].height){
+            item = &game->walls[i];
         }
     }
     return item;
@@ -430,6 +498,7 @@ void updateBallDirection(Game* game, HitPoint* hitPoints){
     for(int i = 0; i < MAX_HITPOINTS; i++){
         if(hitPoints[i].item != NULL){
             currentHitCount++;
+            uartWriteChar((char)currentHitCount);
         }
     }
     Vector currentDirection = game->ball.direction;
@@ -472,6 +541,17 @@ void updateBallDirection(Game* game, HitPoint* hitPoints){
             case ITEMTYPE_LOWERBAR:
                 game->ball.direction = (Vector){1, -1};
                 break;
+            case ITEMTYPE_BOUNDARY_WALL:
+                game->ball.direction = (Vector){currentDirection.x, -currentDirection.y};
+                break;
+            case ITEMTYPE_WINNING_WALL:
+                game->ball.direction = (Vector){0,0};
+                game->state = Won;
+                break;
+            case ITEMTYPE_LOSING_WALL:
+                game->ball.direction = (Vector){0,0};
+                game->state = Lost;
+                break;
             default:
                 break;
         }
@@ -480,7 +560,6 @@ void updateBallDirection(Game* game, HitPoint* hitPoints){
 
 void updateBarDirection(Game* game, unsigned int** buffer){
     char input = uartReadChar();
-    char hasMoved = 0;
     if(input == 'w'){
         for(int i = 0; i < 3; i++){
             if(game->bars[i].yPos > 0){
@@ -572,6 +651,7 @@ int main(int argc, char *argv[])
     Game* game = initGame();
     loadTimer(60);
     HitPoint* hitPoints = (HitPoint*)calloc(MAX_HITPOINTS,sizeof(HitPoint));
+    uartWriteString("Game started\n");
 
     setScreenColor(vga->backBuffer, white);
     drawGame(game,vga->frontBuffer);
