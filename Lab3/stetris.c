@@ -160,9 +160,9 @@ bool initializeSenseHat()
 }
 
 uint16_t rgbTo565(uint8_t r, uint8_t g, uint8_t b){
-    r = (r/0xFF)*31;
-    g = (g/0xFF)*63;
-    b = (b/0xFF)*31;
+    r = (((double)r)/0xFF)*31;
+    g = (((double)g)/0xFF)*63;
+    b = (((double)b)/0xFF)*31;
     if(r>31 || g > 63 || b > 31){
         DEBUG_PRINT("RGB values out of range\n");
         return 0;
@@ -183,7 +183,7 @@ void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
 void generateUniqueColors(Color_t* colorArray, int length)
 {
     // Define possible values for R, G, B in steps (e.g., 0, 128, 255)
-    uint8_t values[] = {0, 128, 255};
+    uint8_t values[] = {128, 190, 255};
     int valueCount = sizeof(values) / sizeof(values[0]);
 
     int idx = 0;  // Array index
