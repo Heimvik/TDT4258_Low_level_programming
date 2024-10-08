@@ -207,36 +207,22 @@ void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
 }
 
 
-void generateUniqueColors(Color_t* colorArray, int length)
-{
-    // Define possible values for R, G, B in steps (e.g., 0, 128, 255)
-    uint8_t values[] = {0,128, 255};
-    int valueCount = sizeof(values) / sizeof(values[0]);
+void generateNonLinearColors(Color_t* colorArray, int length) {
+    int idx = 0;
 
-    int idx = 0;  // Array index
+    while (idx < length) {
+        // Use non-linear transformations of idx to generate unique indices
+        int ridx = (idx * idx + 7) % 256;      // Square + a prime
+        int gidx = ((idx * 3) + (idx >> 1)) % 256; // Mix of arithmetic and shift
+        int bidx = ((idx * 5) ^ (idx << 2)) % 256; // Multiply and XOR with shift
 
-    // Generate unique colors by iterating over combinations of r, g, b
-    for (int rIdx = 0; rIdx < valueCount && idx < length; rIdx++)
-    {
-        for (int gIdx = 0; gIdx < valueCount && idx < length; gIdx++)
-        {
-            for (int bIdx = 0; bIdx < valueCount && idx < length; bIdx++)
-            {
-                // Skip the color (0, 0, 0) which is black
-                if (values[rIdx] == 0 && values[gIdx] == 0 && values[bIdx] == 0)
-                {
-                    continue;
-                }
+        // Assign unique color values based on these indices
+        colorArray[idx].r = ridx;
+        colorArray[idx].g = gidx;
+        colorArray[idx].b = bidx;
 
-                // Assign unique color to the array
-                colorArray[idx].r = values[rIdx];
-                colorArray[idx].g = values[gIdx];
-                colorArray[idx].b = values[bIdx];
-
-                idx++;  // Move to the next position in the array
-                if (idx >= length) break;
-            }
-        }
+        // Increment the index to move to the next color
+        idx++;
     }
 }
 
