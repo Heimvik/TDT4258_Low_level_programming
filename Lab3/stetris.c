@@ -220,7 +220,7 @@ Color_t findMostUnlikeColor(Color_t* colors, uint32_t length)
         }
     }
     
-    return (Color_t){.r=255,.g=0,.g=0};// mostUnlikeColor;
+    return mostUnlikeColor;//(Color_t){.r=255,.g=0,.g=0};
 }
 
 // This function is called when the application exits
@@ -385,6 +385,7 @@ bool clearRow()
             copyRow(y, y - 1);
         }
         resetRow(0);
+	game.usedColorsCount -= game.grid.x;
         return true;
     }
     return false;
