@@ -164,9 +164,9 @@ int findDeviceFile(char* base, char* id) {
 // return false if something fails, else true
 bool initializeSenseHat(int* fdFb)
 {
-    if(fdFb != -1){
+    if(*fdFb != -1){
         struct fb_var_screeninfo vInfo;
-        ioctl(fdFb, FBIOGET_VSCREENINFO, &vInfo);
+        ioctl(*fdFb, FBIOGET_VSCREENINFO, &vInfo);
 
         screen.resX = (uint16_t)vInfo.xres;
         screen.resY = (uint16_t)vInfo.yres;
@@ -176,7 +176,7 @@ bool initializeSenseHat(int* fdFb)
         DEBUG_PRINT("BPP: %d\n", screen.bitDepth);
         
         screen.senseHat = mmap(NULL, screen.resX*screen.resY*(screen.bitDepth/8), PROT_READ|PROT_WRITE, MAP_SHARED, fdFb, 0);
-        close(fdFb);
+        close(*fdFb);
     }
 
     for(int i = 0; i < screen.resX; i++){
@@ -253,14 +253,13 @@ void freeSenseHat()
 // KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, with the respective direction
 // and KEY_ENTER, when the the joystick is pressed
 // !!! when nothing was pressed you MUST return 0 !!!
-int readSenseHatJoystick()
+int readSenseHatJoystick(int* fdJoy)
 {
-    int fb = findDeviceFile("/dev/input/event", "Raspberry Pi Sense HAT Joystick");
-    if(fb != -1){
-        struct pollfd pfd = {fb, POLLIN, 0};
+    if(*fdJoy != -1){
+        struct pollfd pfd = {fdJoy, POLLIN, 0};
         struct input_event ev;
         if(poll(&pfd, 1, 0)){
-            read(fb, &ev, sizeof(struct input_event));
+            read(fdJoy, &ev, sizeof(struct input_event));
             if(ev.type == EV_KEY && ev.value == 1){
                 return ev.code;
             }
@@ -642,10 +641,7 @@ int main(int argc, char **argv)
     game.playfield = (tile **)malloc(game.grid.y * sizeof(tile *));
     game.tileColors = (Color_t*)malloc(game.grid.x * game.grid.y * sizeof(Color_t));
     generateUniqueColors(game.tileColors, game.grid.x * game.grid.y);
-    while(1){
-        readSenseHatJoystick();
-        usleep(100000);
-    }
+
     if (!game.playfield || !game.rawPlayfield)
     {
         fprintf(stderr, "ERROR: could not allocate playfield\n");
@@ -680,7 +676,7 @@ int main(int argc, char **argv)
         struct timeval sTv, eTv;
         gettimeofday(&sTv, NULL);
 
-        int key = readSenseHatJoystick();
+        int key = readSenseHatJoystick(fdJoy);
         if (!key)
         {
             // NOTE: Uncomment the next line if you want to test your implementation with
@@ -707,6 +703,8 @@ int main(int argc, char **argv)
     }
 
     freeSenseHat();
+    close(fdJoy);
+    close(fdFb);
     free(game.playfield);
     free(game.rawPlayfield);
 
