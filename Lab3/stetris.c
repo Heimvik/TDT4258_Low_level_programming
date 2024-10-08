@@ -70,7 +70,17 @@ gameConfig game = {
     .initNextGameTick = 50,
 };
 
-static uint8_t* senseHat = NULL;
+
+typedef struct LedScreen_t{
+    volatile uint16_t* senseHat;
+    uint16_t resX;
+    uint16_t resY;
+    uint16_t bitDepth;
+} LedScreen_t;
+
+static LedScreen_t screen;
+
+void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b);
 
 // This function is called on the start of your application
 // Here you can initialize what ever you need for your task
@@ -102,14 +112,14 @@ bool initializeSenseHat()
                 struct fb_var_screeninfo vInfo;
                 ioctl(fb, FBIOGET_VSCREENINFO, &vInfo);
 
-                uint32_t xRes = vInfo.xres;
-                uint32_t yRes = vInfo.yres;
-                uint32_t BPP = vInfo.bits_per_pixel;
-                DEBUG_PRINT("xRes: %d", xRes);
-                DEBUG_PRINT("yRes: %d", yRes);
-                DEBUG_PRINT("BPP: %d", BPP);
+                screen.resX = (uint16_t)vInfo.xres;
+                screen.resY = (uint16_t)vInfo.yres;
+                screen.bitDepth = (uint16_t)vInfo.bits_per_pixel;
+                DEBUG_PRINT("xRes: %d\n", screen.resX);
+                DEBUG_PRINT("yRes: %d\n", screen.resY);
+                DEBUG_PRINT("BPP: %d\n", screen.bitDepth);
                 
-                senseHat = mmap(NULL, xRes*yRes*(BPP/8), PROT_READ|PROT_WRITE, MAP_SHARED, fb, 0);
+                screen.senseHat = mmap(NULL, screen.resX*screen.resY*(screen.bitDepth/8), PROT_READ|PROT_WRITE, MAP_SHARED, fb, 0);
                 close(fb);
             } else{
                 close(fb);
@@ -125,13 +135,29 @@ bool initializeSenseHat()
         currFb++;
     }
     free(fileName);
+    for(int i = 0; i < screen.resX; i++){
+        for(int j = 0; j < screen.resY; j++){
+            setPixel(i,j,0,0,0);
+        }
+    }
     
-
-
-    printf("SenseHat: %p\n", senseHat);
-    
-
     return true;
+}
+
+uint16_t rgbTo565(uint8_t r, uint8_t g, uint8_t b){
+    if(r>31 || g > 63 || b > 31){
+        DEBUG_PRINT("RGB values out of range\n");
+        return 0;
+    }
+    uint16_t color = r<<11|g<<5|b;
+    return color;
+}
+
+void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
+    if(screen.senseHat == NULL){
+        return;
+    }
+    screen.senseHat[x+(y*(screen.bitDepth/8))] = rgbTo565(r,g,b);
 }
 
 // This function is called when the application exits
