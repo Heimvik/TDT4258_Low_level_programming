@@ -234,10 +234,11 @@ void freeSenseHat()
 // !!! when nothing was pressed you MUST return 0 !!!
 int readSenseHatJoystick()
 {
-    int fd = findDeviceFile("/dev/input/event", "Raspberry Pi Sense HAT Joystick");
-    if(fd != -1){
-        struct pollfd pfd = {fd, POLLIN, 0};
+    int fb = findDeviceFile("/dev/input/event", "Raspberry Pi Sense HAT Joystick");
+    if(fb != -1){
+        struct pollfd pfd = {fb, POLLIN, 0};
         int code = poll(&pfd, 1, 0);
+        DEBUG_PRINT("Poll returned: %d\n", code);
     }
     return 0;
 }
@@ -659,8 +660,8 @@ int main(int argc, char **argv)
             break;
 
         bool playfieldChanged = sTetris(key);
-        renderConsole(playfieldChanged);
-        renderSenseHatMatrix(playfieldChanged);
+        //renderConsole(playfieldChanged);
+        //renderSenseHatMatrix(playfieldChanged);
 
         // Wait for next tick
         gettimeofday(&eTv, NULL);
