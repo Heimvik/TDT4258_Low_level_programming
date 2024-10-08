@@ -182,23 +182,32 @@ void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
 
 void generateUniqueColors(Color_t* colorArray, int length)
 {
-    uint8_t values[] = {0, 128, 255};  // Possible color values
-    int idx = 0;
+    // List of manually chosen colors excluding black (0, 0, 0)
+    Color_t predefinedColors[] = {
+        {255, 0, 0},    // Red
+        {0, 255, 0},    // Green
+        {0, 0, 255},    // Blue
+        {255, 255, 0},  // Yellow
+        {255, 0, 255},  // Magenta
+        {0, 255, 255},  // Cyan
+        {128, 0, 0},    // Dark Red
+        {0, 128, 0},    // Dark Green
+        {0, 0, 128},    // Dark Blue
+        {128, 128, 0},  // Olive
+        {128, 0, 128},  // Purple
+        {0, 128, 128},  // Teal
+        {255, 128, 0},  // Orange
+        {128, 255, 0},  // Lime Green
+        {255, 0, 128},  // Pink
+        // Add more colors as needed
+    };
 
-    for (int r = 0; r < 3 && idx < length; r++)
+    int predefinedCount = sizeof(predefinedColors) / sizeof(predefinedColors[0]);
+
+    // Fill the array with the predefined colors up to the given length
+    for (int i = 0; i < length && i < predefinedCount; i++)
     {
-        for (int g = 0; g < 3 && idx < length; g++)
-        {
-            for (int b = 0; b < 3 && idx < length; b++)
-            {
-                // Skip black (0, 0, 0)
-                if (r == 0 && g == 0 && b == 0)
-                    continue;
-
-                // Assign color to the array
-                colorArray[idx++] = (Color_t){values[r], values[g], values[b]};
-            }
-        }
+        colorArray[i] = predefinedColors[i];
     }
 }
 
