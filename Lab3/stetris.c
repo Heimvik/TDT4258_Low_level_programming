@@ -69,7 +69,6 @@ typedef struct
     coord activeTile; // current tile
 
     Color_t* tileColors;
-    uint32_t currentColorCount;
 
     unsigned long tick;         // incremeted at tickrate, wraps at nextGameTick
                                 // when reached 0, next game state calculated
@@ -82,7 +81,6 @@ gameConfig game = {
     .uSecTickTime = 10000,
     .rowsPerLevel = 2,
     .initNextGameTick = 50,
-    .currentColorCount = 0,
 };
 
 
@@ -299,8 +297,8 @@ void renderSenseHatMatrix(bool const playfieldChanged)
 
 static inline void newTile(coord const target)
 {
-    Color_t color = game.tileColors[game.currentColorCount];
-    game.tileColors[game.currentColorCount] = color;
+    Color_t color = game.tileColors[game.tiles-(game.score*game.grid.x)];
+    game.tileColors[game.tiles-(game.score*game.grid.x)] = color;
     game.tileColors++;
     game.playfield[target.y][target.x].color = color;
     game.playfield[target.y][target.x].occupied = true;
@@ -414,7 +412,6 @@ bool clearRow()
             copyRow(y, y - 1);
         }
         resetRow(0);
-	    game.currentColorCount -= game.grid.x;
         return true;
     }
     return false;
