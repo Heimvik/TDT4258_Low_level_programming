@@ -162,13 +162,11 @@ int findDeviceFile(char* base, char* id) {
 // This function is called on the start of your application
 // Here you can initialize what ever you need for your task
 // return false if something fails, else true
-bool initializeSenseHat()
+bool initializeSenseHat(int* fdFb)
 {
-    char* base = "/dev/fb";
-    int fb = findDeviceFile(base, "RPi-Sense FB");
-    if(fb != -1){
+    if(fdFb != -1){
         struct fb_var_screeninfo vInfo;
-        ioctl(fb, FBIOGET_VSCREENINFO, &vInfo);
+        ioctl(fdFb, FBIOGET_VSCREENINFO, &vInfo);
 
         screen.resX = (uint16_t)vInfo.xres;
         screen.resY = (uint16_t)vInfo.yres;
@@ -177,8 +175,8 @@ bool initializeSenseHat()
         DEBUG_PRINT("yRes: %d\n", screen.resY);
         DEBUG_PRINT("BPP: %d\n", screen.bitDepth);
         
-        screen.senseHat = mmap(NULL, screen.resX*screen.resY*(screen.bitDepth/8), PROT_READ|PROT_WRITE, MAP_SHARED, fb, 0);
-        close(fb);
+        screen.senseHat = mmap(NULL, screen.resX*screen.resY*(screen.bitDepth/8), PROT_READ|PROT_WRITE, MAP_SHARED, fdFb, 0);
+        close(fdFb);
     }
 
     for(int i = 0; i < screen.resX; i++){
@@ -261,13 +259,12 @@ int readSenseHatJoystick()
     if(fb != -1){
         struct pollfd pfd = {fb, POLLIN, 0};
         struct input_event ev;
-        poll(&pfd, 1, 0);
-
-        if (ev.type == EV_KEY && ev.value == 1)
-        {
-            return ev.code;
+        if(poll(&pfd, 1, 0)){
+            read(fb, &ev, sizeof(struct input_event));
+            if(ev.type == EV_KEY && ev.value == 1){
+                return ev.code;
+            }
         }
-        
     }
     return 0;
 }
@@ -663,8 +660,11 @@ int main(int argc, char **argv)
     resetPlayfield();
     // Start with gameOver
     gameOver();
-
-    if (!initializeSenseHat())
+    char* joyBase = "/dev/input/event";
+    int fdJoy = findDeviceFile(joyBase, "Raspberry Pi Sense HAT Joystick");
+    char* fbBase = "/dev/fb";
+    int fdFb = findDeviceFile(fbBase, "RPi-Sense FB");
+    if (!initializeSenseHat(fdFb))
     {
         fprintf(stderr, "ERROR: could not initilize sense hat\n");
         return 1;
