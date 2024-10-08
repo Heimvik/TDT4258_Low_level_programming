@@ -238,6 +238,7 @@ Color_t findMostUnlikeColor(Color_t* colorList, int length)
         }
     }
     printf("Most unlike color: %d %d %d\n", mostUnlikeColor.r, mostUnlikeColor.g, mostUnlikeColor.b);
+    sleep(2);
     return mostUnlikeColor;
 }
 
@@ -403,7 +404,7 @@ bool clearRow()
             copyRow(y, y - 1);
         }
         resetRow(0);
-	game.usedColorsCount -= game.grid.x;
+	    game.usedColorsCount -= game.grid.x;
         return true;
     }
     return false;
