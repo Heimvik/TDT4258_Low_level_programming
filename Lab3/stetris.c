@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -137,7 +138,8 @@ bool initializeSenseHat()
     free(fileName);
     for(int i = 0; i < screen.resX; i++){
         for(int j = 0; j < screen.resY; j++){
-            setPixel(i,j,0,0,0);
+            setPixel(i,j,0,0,255);
+            usleep(10000);
         }
     }
     
@@ -145,6 +147,9 @@ bool initializeSenseHat()
 }
 
 uint16_t rgbTo565(uint8_t r, uint8_t g, uint8_t b){
+    r = (r/0xFF)*31;
+    g = (g/0xFF)*63;
+    b = (b/0xFF)*31;
     if(r>31 || g > 63 || b > 31){
         DEBUG_PRINT("RGB values out of range\n");
         return 0;
@@ -157,7 +162,8 @@ void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
     if(screen.senseHat == NULL){
         return;
     }
-    screen.senseHat[x+(y*(screen.bitDepth/8))] = rgbTo565(r,g,b);
+    screen.senseHat[y+(x*screen.resX)] = rgbTo565(r,g,b);
+    return;
 }
 
 // This function is called when the application exits
