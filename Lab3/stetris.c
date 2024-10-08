@@ -97,45 +97,66 @@ static LedScreen_t screen;
 
 void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b);
 
-int findDeviceFile(char* base, char* id){
+// Function to find a device file based on its ID
+int findDeviceFile(char* base, char* id) {
     char* fileName = malloc(strlen(base) + 4); // +4 for 3 digits and null terminator
     if (fileName == NULL) {
         perror("Failed to allocate memory for fileName");
         return -1; // Memory allocation failed
     }
 
-    int currFb = 0;
-    int fb = -1;
+    int currDevice = 0;
+    int deviceFd = -1;
 
     while (1) {
-        sprintf(fileName, "%s%d", base, currFb); // Construct the framebuffer name
+        sprintf(fileName, "%s%d", base, currDevice); // Construct the device name
         printf("Trying to open %s\n", fileName);
 
-        fb = open(fileName, O_RDWR);
-        if (fb != -1) {
-            struct fb_fix_screeninfo fInfo;
-            ioctl(fb, FBIOGET_FSCREENINFO, &fInfo);
-            DEBUG_PRINT("Target id: %s\n",id);
-            DEBUG_PRINT("Current id: %s\n",fInfo.id);
-            if(!strcmp(fInfo.id,id)){
-                DEBUG_PRINT("Found device with id: %s\n",id);
-                free(fileName);
-                return currFb;
-            } else{
-                close(fb);
+        deviceFd = open(fileName, O_RDWR);
+        if (deviceFd != -1) {
+            // Check if the device is a framebuffer
+            if (strncmp(base, "/dev/fb", 7) == 0) {
+                struct fb_fix_screeninfo fInfo;
+                if (ioctl(deviceFd, FBIOGET_FSCREENINFO, &fInfo) == 0) {
+                    DEBUG_PRINT("Target id: %s\n", id);
+                    DEBUG_PRINT("Current id: %s\n", fInfo.id);
+                    if (!strcmp(fInfo.id, id)) {
+                        DEBUG_PRINT("Found framebuffer device with id: %s\n", id);
+                        free(fileName);
+                        return deviceFd; // Return framebuffer number
+                    }
+                } else {
+                    perror("Failed to get framebuffer info");
+                }
             }
+            // Check if the device is a joystick
+            else if (strncmp(base, "/dev/input/event", 16) == 0) {
+                char name[256];
+                if (ioctl(deviceFd, EVIOCGNAME(sizeof(name)), name) >= 0) {
+                    DEBUG_PRINT("Target id: %s\n", id);
+                    DEBUG_PRINT("Current id: %s\n", name);
+                    if (!strcmp(name, id)) {
+                        DEBUG_PRINT("Found joystick device with id: %s\n", id);
+                        free(fileName);
+                        return deviceFd;
+                    }
+                } else {
+                    perror("Failed to get joystick info");
+                }
+            }
+            close(deviceFd);
         } else if (errno == ENOENT) {
-            printf("Reached end of fbs\n");
+            printf("Reached end of devices\n");
             break;
         } else {
-            perror("Failed to open framebuffer");
+            perror("Failed to open device");
             break;
         }
-
-        currFb++;
+        currDevice++;
     }
+    
     free(fileName);
-    return -1;
+    return -1; // Device not found
 }
 
 // This function is called on the start of your application
