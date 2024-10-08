@@ -260,8 +260,14 @@ int readSenseHatJoystick()
     int fb = findDeviceFile("/dev/input/event", "Raspberry Pi Sense HAT Joystick");
     if(fb != -1){
         struct pollfd pfd = {fb, POLLIN, 0};
-        int code = poll(&pfd, 1, 0);
-        DEBUG_PRINT("Poll returned: %d\n", code);
+        struct input_event ev;
+        poll(&pfd, 1, 0);
+
+        if (ev.type == EV_KEY && ev.value == 1)
+        {
+            return ev.code;
+        }
+        
     }
     return 0;
 }
