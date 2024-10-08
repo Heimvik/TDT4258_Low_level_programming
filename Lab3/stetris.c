@@ -101,13 +101,15 @@ bool initializeSenseHat()
                 
                 struct fb_var_screeninfo vInfo;
                 ioctl(fb, FBIOGET_VSCREENINFO, &vInfo);
-                uint32_t vYres = vInfo.yres_virtual;
-                uint32_t lineLength = fInfo.line_length;
+
+                uint32_t xRes = vInfo.xres;
+                uint32_t yRes = vInfo.yres;
+                uint32_t BPP = vInfo.bits_per_pixel;
+                DEBUG_PRINT("xRes: %d", xRes);
+                DEBUG_PRINT("yRes: %d", yRes);
+                DEBUG_PRINT("BPP: %d", BPP);
                 
-                DEBUG_PRINT("vYres: %d\n", vYres);
-                DEBUG_PRINT("lineLength: %d\n", lineLength);
-                
-                senseHat = mmap(NULL, vYres*lineLength, PROT_READ|PROT_WRITE, MAP_SHARED, fb, 0);
+                senseHat = mmap(NULL, xRes*yRes*(BPP/8), PROT_READ|PROT_WRITE, MAP_SHARED, fb, 0);
                 close(fb);
             } else{
                 close(fb);
