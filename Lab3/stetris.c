@@ -686,6 +686,12 @@ int main(int argc, char **argv)
         }
         game.tick = (game.tick + 1) % game.nextGameTick;
     }
+    
+    for(int i = 0; i < screen.resX; i++){
+        for(int j = 0; j < screen.resY; j++){
+            setPixel(i,j,0,0,0);
+        }
+    }
 
     freeSenseHat();
     close(fdJoy);
