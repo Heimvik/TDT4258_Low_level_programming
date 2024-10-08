@@ -210,7 +210,7 @@ void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
 void generateUniqueColors(Color_t* colorArray, int length)
 {
     // Define possible values for R, G, B in steps (e.g., 0, 128, 255)
-    //uint8_t values[] = {0,128, 255};
+    uint8_t values[] = {0,128, 255};
     int idx = 0;
 
     while (idx < length) {
@@ -220,9 +220,9 @@ void generateUniqueColors(Color_t* colorArray, int length)
         int bidx = ((idx * 5) ^ (idx << 2)) % 3; // Multiply and XOR with shift
 
         // Assign unique color values based on these indices
-        colorArray[idx].r = ridx;
-        colorArray[idx].g = gidx;
-        colorArray[idx].b = bidx;
+        colorArray[idx].r = values[ridx];
+        colorArray[idx].g = values[gidx];
+        colorArray[idx].b = values[bidx];
 
         // Increment the index to move to the next color
         idx++;
