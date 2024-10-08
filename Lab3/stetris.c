@@ -193,7 +193,7 @@ double colorDistance(Color_t color1, Color_t color2)
 Color_t findMostUnlikeColor(Color_t* colorList, int length)
 {
     // Define possible permutations of R, G, B values
-    uint8_t values[] = {0, 128, 255};
+    uint8_t values[] = {170,210,255};
     int numPermutations = 27;  // 3 * 3 * 3 possible colors
     
     // Variables to store the best color and maximum distance found
