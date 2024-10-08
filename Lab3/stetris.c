@@ -182,32 +182,34 @@ void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
 
 void generateUniqueColors(Color_t* colorArray, int length)
 {
-    // List of manually chosen colors excluding black (0, 0, 0)
-    Color_t predefinedColors[] = {
-        {255, 0, 0},    // Red
-        {0, 255, 0},    // Green
-        {0, 0, 255},    // Blue
-        {255, 255, 0},  // Yellow
-        {255, 0, 255},  // Magenta
-        {0, 255, 255},  // Cyan
-        {128, 0, 0},    // Dark Red
-        {0, 128, 0},    // Dark Green
-        {0, 0, 128},    // Dark Blue
-        {128, 128, 0},  // Olive
-        {128, 0, 128},  // Purple
-        {0, 128, 128},  // Teal
-        {255, 128, 0},  // Orange
-        {128, 255, 0},  // Lime Green
-        {255, 0, 128},  // Pink
-        // Add more colors as needed
-    };
+    // Define possible values for R, G, B in steps (e.g., 0, 128, 255)
+    uint8_t values[] = {0, 128, 255};
+    int valueCount = sizeof(values) / sizeof(values[0]);
 
-    int predefinedCount = sizeof(predefinedColors) / sizeof(predefinedColors[0]);
+    int idx = 0;  // Array index
 
-    // Fill the array with the predefined colors up to the given length
-    for (int i = 0; i < length && i < predefinedCount; i++)
+    // Generate unique colors by iterating over combinations of r, g, b
+    for (int rIdx = 0; rIdx < valueCount && idx < length; rIdx++)
     {
-        colorArray[i] = predefinedColors[i];
+        for (int gIdx = 0; gIdx < valueCount && idx < length; gIdx++)
+        {
+            for (int bIdx = 0; bIdx < valueCount && idx < length; bIdx++)
+            {
+                // Skip the color (0, 0, 0) which is black
+                if (values[rIdx] == 0 && values[gIdx] == 0 && values[bIdx] == 0)
+                {
+                    continue;
+                }
+
+                // Assign unique color to the array
+                colorArray[idx].r = values[rIdx];
+                colorArray[idx].g = values[gIdx];
+                colorArray[idx].b = values[bIdx];
+
+                idx++;  // Move to the next position in the array
+                if (idx >= length) break;
+            }
+        }
     }
 }
 
@@ -599,6 +601,7 @@ int main(int argc, char **argv)
     game.rawPlayfield = (tile *)malloc(game.grid.x * game.grid.y * sizeof(tile));
     game.playfield = (tile **)malloc(game.grid.y * sizeof(tile *));
     game.tileColors = (Color_t*)malloc(game.grid.x * game.grid.y * sizeof(Color_t));
+    generateUniqueColors(game.tileColors, game.grid.x * game.grid.y);
     if (!game.playfield || !game.rawPlayfield)
     {
         fprintf(stderr, "ERROR: could not allocate playfield\n");
