@@ -183,11 +183,11 @@ void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
 void generateUniqueColors(Color_t* colorArray, int length)
 {
     // Define possible values for R, G, B in steps (e.g., 0, 128, 255)
-    uint8_t values[] = {0, 128, 200, 255};
+    uint8_t values[] = {0, 128, 255};
     int valueCount = sizeof(values) / sizeof(values[0]);
-    
+
     int idx = 0;  // Array index
-    
+
     // Generate unique colors by iterating over combinations of r, g, b
     for (int rIdx = 0; rIdx < valueCount && idx < length; rIdx++)
     {
@@ -195,15 +195,19 @@ void generateUniqueColors(Color_t* colorArray, int length)
         {
             for (int bIdx = 0; bIdx < valueCount && idx < length; bIdx++)
             {
-                if(rIdx == gIdx && gIdx == bIdx){
+                // Skip the color (0, 0, 0) which is black
+                if (values[rIdx] == 0 && values[gIdx] == 0 && values[bIdx] == 0)
+                {
                     continue;
                 }
+
                 // Assign unique color to the array
                 colorArray[idx].r = values[rIdx];
                 colorArray[idx].g = values[gIdx];
                 colorArray[idx].b = values[bIdx];
-                
+
                 idx++;  // Move to the next position in the array
+                if (idx >= length) break;
             }
         }
     }
