@@ -189,57 +189,45 @@ double colorDistance(Color_t color1, Color_t color2)
     return sqrt(dr * dr + dg * dg + db * db);
 }
 
-int isColorInList(Color_t color, Color_t* colorList, int length)
-{
-    for (int i = 0; i < length; i++)
-    {
-        if (color.r == colorList[i].r && color.g == colorList[i].g && color.b == colorList[i].b)
-        {
-            return 1; // Color is in the list
-        }
-    }
-    return 0; // Color is not in the list
-}
-
+// Function to find the most unlike color that is not in the list
 Color_t findMostUnlikeColor(Color_t* colorList, int length)
 {
-    Color_t mostUnlikeColor;
+    // Define possible permutations of R, G, B values
+    uint8_t values[] = {0, 128, 255};
+    int numPermutations = 27;  // 3 * 3 * 3 possible colors
+    
+    // Variables to store the best color and maximum distance found
+    Color_t bestColor;
     double maxTotalDistance = -1.0;
 
-    // Iterate through all possible RGB values (or a subset of them for efficiency)
-    for (uint8_t r = 0; r <= 255; r += 16)  // We step by 16 to reduce the search space
+    // Iterate over all permutations of the R, G, B values
+    for (int rIdx = 0; rIdx < 3; rIdx++)
     {
-        for (uint8_t g = 0; g <= 255; g += 16)
+        for (int gIdx = 0; gIdx < 3; gIdx++)
         {
-            for (uint8_t b = 0; b <= 255; b += 16)
+            for (int bIdx = 0; bIdx < 3; bIdx++)
             {
-                Color_t candidateColor = {r, g, b};
+                // Create a candidate color
+                Color_t candidateColor = {values[rIdx], values[gIdx], values[bIdx]};
                 
-                // Skip if this color is already in the list
-                if (isColorInList(candidateColor, colorList, length))
-                {
-                    continue;
-                }
-                
-                // Calculate the total distance between this candidate color and all colors in the list
+                // Calculate the total distance from this color to all others in the list
                 double totalDistance = 0.0;
                 for (int i = 0; i < length; i++)
                 {
                     totalDistance += colorDistance(candidateColor, colorList[i]);
                 }
                 
-                // If this color is more unlike than the previous best, update the result
+                // If this color has a larger total distance than the current max, update the best color
                 if (totalDistance > maxTotalDistance)
                 {
                     maxTotalDistance = totalDistance;
-                    mostUnlikeColor = candidateColor;
+                    bestColor = candidateColor;
                 }
             }
         }
     }
-    printf("Most unlike color: %d %d %d\n", mostUnlikeColor.r, mostUnlikeColor.g, mostUnlikeColor.b);
-    sleep(2);
-    return mostUnlikeColor;
+    
+    return bestColor;
 }
 
 // This function is called when the application exits
