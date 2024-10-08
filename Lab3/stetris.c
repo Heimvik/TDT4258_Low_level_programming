@@ -14,6 +14,7 @@
 #include <fcntl.h> 
 #include <errno.h>
 #include <stdint.h>
+#include <math.h>
 
 // The game state can be used to detect what happens on the playfield
 #define GAMEOVER 0
@@ -30,9 +31,18 @@
 
 // If you extend this structure, either avoid pointers or adjust
 // the game logic allocate/deallocate and reset the memory
+
+typedef struct
+{
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+} Color_t;
+
 typedef struct
 {
     bool occupied;
+    Color_t color;
 } tile;
 
 typedef struct
@@ -58,6 +68,9 @@ typedef struct
     unsigned int state;
     coord activeTile; // current tile
 
+    Color_t* usedColors;
+    uint32_t usedColorsCount;
+
     unsigned long tick;         // incremeted at tickrate, wraps at nextGameTick
                                 // when reached 0, next game state calculated
     unsigned long nextGameTick; // sets when tick is wrapping back to zero
@@ -69,6 +82,7 @@ gameConfig game = {
     .uSecTickTime = 10000,
     .rowsPerLevel = 2,
     .initNextGameTick = 50,
+    .usedColorsCount = 0,
 };
 
 
@@ -165,6 +179,50 @@ void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
     return;
 }
 
+
+// Helper function to calculate the Euclidean distance between two colors
+double colorDistance(Color_t color1, Color_t color2)
+{
+    int dr = (int)color1.r - (int)color2.r;
+    int dg = (int)color1.g - (int)color2.g;
+    int db = (int)color1.b - (int)color2.b;
+    
+    return sqrt(dr * dr + dg * dg + db * db);
+}
+
+// Function to find the most unlike color in an array of colors
+Color_t findMostUnlikeColor(Color_t* colors, uint32_t length)
+{
+    if (length <= 1)
+    {
+        return colors[0];
+    }
+    
+    double maxTotalDistance = -1.0;
+    Color_t mostUnlikeColor;
+    
+    for (int i = 0; i < length; i++)
+    {
+        double totalDistance = 0.0;
+        
+        for (int j = 0; j < length; j++)
+        {
+            if (i != j)
+            {
+                totalDistance += colorDistance(colors[i], colors[j]);
+            }
+        }
+        
+        if (totalDistance > maxTotalDistance)
+        {
+            maxTotalDistance = totalDistance;
+            mostUnlikeColor = colors[i];
+        }
+    }
+    
+    return mostUnlikeColor;
+}
+
 // This function is called when the application exits
 // Here you can free up everything that you might have opened/allocated
 void freeSenseHat()
@@ -212,6 +270,10 @@ void renderSenseHatMatrix(bool const playfieldChanged)
 
 static inline void newTile(coord const target)
 {
+    Color_t color = findMostUnlikeColor(game.usedColors, game.usedColorsCount);
+    game.usedColors[game.usedColorsCount] = color;
+    game.usedColorsCount++;
+    game.playfield[target.y][target.x].color = color;
     game.playfield[target.y][target.x].occupied = true;
 }
 
@@ -547,6 +609,7 @@ int main(int argc, char **argv)
     // Allocate the playing field structure
     game.rawPlayfield = (tile *)malloc(game.grid.x * game.grid.y * sizeof(tile));
     game.playfield = (tile **)malloc(game.grid.y * sizeof(tile *));
+    game.usedColors = (Color_t*)malloc(game.grid.x * game.grid.y * sizeof(Color_t));
     if (!game.playfield || !game.rawPlayfield)
     {
         fprintf(stderr, "ERROR: could not allocate playfield\n");
