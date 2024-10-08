@@ -68,8 +68,8 @@ typedef struct
     unsigned int state;
     coord activeTile; // current tile
 
-    Color_t* usedColors;
-    uint32_t usedColorsCount;
+    Color_t* tileColors;
+    uint32_t currentColorCount;
 
     unsigned long tick;         // incremeted at tickrate, wraps at nextGameTick
                                 // when reached 0, next game state calculated
@@ -82,7 +82,7 @@ gameConfig game = {
     .uSecTickTime = 10000,
     .rowsPerLevel = 2,
     .initNextGameTick = 50,
-    .usedColorsCount = 0,
+    .currentColorCount = 0,
 };
 
 
@@ -180,54 +180,30 @@ void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
 }
 
 
-double colorDistance(Color_t color1, Color_t color2)
+void generateUniqueColors(Color_t* colorArray, int length)
 {
-    int dr = (int)color1.r - (int)color2.r;
-    int dg = (int)color1.g - (int)color2.g;
-    int db = (int)color1.b - (int)color2.b;
+    // Define possible values for R, G, B in steps (e.g., 0, 128, 255)
+    uint8_t values[] = {0, 128, 255};
+    int valueCount = sizeof(values) / sizeof(values[0]);
     
-    return sqrt(dr * dr + dg * dg + db * db);
-}
-
-// Function to find the most unlike color that is not in the list
-Color_t findMostUnlikeColor(Color_t* colorList, int length)
-{
-    // Define possible permutations of R, G, B values
-    uint8_t values[] = {170,210,255};
-    int numPermutations = 27;  // 3 * 3 * 3 possible colors
+    int idx = 0;  // Array index
     
-    // Variables to store the best color and maximum distance found
-    Color_t bestColor;
-    double maxTotalDistance = -1.0;
-
-    // Iterate over all permutations of the R, G, B values
-    for (int rIdx = 0; rIdx < 3; rIdx++)
+    // Generate unique colors by iterating over combinations of r, g, b
+    for (int rIdx = 0; rIdx < valueCount && idx < length; rIdx++)
     {
-        for (int gIdx = 0; gIdx < 3; gIdx++)
+        for (int gIdx = 0; gIdx < valueCount && idx < length; gIdx++)
         {
-            for (int bIdx = 0; bIdx < 3; bIdx++)
+            for (int bIdx = 0; bIdx < valueCount && idx < length; bIdx++)
             {
-                // Create a candidate color
-                Color_t candidateColor = {values[rIdx], values[gIdx], values[bIdx]};
+                // Assign unique color to the array
+                colorArray[idx].r = values[rIdx];
+                colorArray[idx].g = values[gIdx];
+                colorArray[idx].b = values[bIdx];
                 
-                // Calculate the total distance from this color to all others in the list
-                double totalDistance = 0.0;
-                for (int i = 0; i < length; i++)
-                {
-                    totalDistance += colorDistance(candidateColor, colorList[i]);
-                }
-                
-                // If this color has a larger total distance than the current max, update the best color
-                if (totalDistance > maxTotalDistance)
-                {
-                    maxTotalDistance = totalDistance;
-                    bestColor = candidateColor;
-                }
+                idx++;  // Move to the next position in the array
             }
         }
     }
-    
-    return bestColor;
 }
 
 // This function is called when the application exits
@@ -277,9 +253,9 @@ void renderSenseHatMatrix(bool const playfieldChanged)
 
 static inline void newTile(coord const target)
 {
-    Color_t color = findMostUnlikeColor(game.usedColors, game.usedColorsCount);
-    game.usedColors[game.usedColorsCount] = color;
-    game.usedColorsCount++;
+    Color_t color = game.tileColors[game.currentColorCount];
+    game.tileColors[game.currentColorCount] = color;
+    game.tileColors++;
     game.playfield[target.y][target.x].color = color;
     game.playfield[target.y][target.x].occupied = true;
 }
@@ -392,7 +368,7 @@ bool clearRow()
             copyRow(y, y - 1);
         }
         resetRow(0);
-	    game.usedColorsCount -= game.grid.x;
+	    game.currentColorCount -= game.grid.x;
         return true;
     }
     return false;
@@ -617,7 +593,7 @@ int main(int argc, char **argv)
     // Allocate the playing field structure
     game.rawPlayfield = (tile *)malloc(game.grid.x * game.grid.y * sizeof(tile));
     game.playfield = (tile **)malloc(game.grid.y * sizeof(tile *));
-    game.usedColors = (Color_t*)malloc(game.grid.x * game.grid.y * sizeof(Color_t));
+    game.tileColors = (Color_t*)malloc(game.grid.x * game.grid.y * sizeof(Color_t));
     if (!game.playfield || !game.rawPlayfield)
     {
         fprintf(stderr, "ERROR: could not allocate playfield\n");
