@@ -117,7 +117,6 @@ int findDeviceFile(char* base, char* id){
             ioctl(fb, FBIOGET_FSCREENINFO, &fInfo);
             if(!strcmp(fInfo.id,id)){
                 DEBUG_PRINT("Found device with id: %s\n",id);
-                close(fb);
                 free(fileName);
                 return currFb;
             } else{
@@ -235,7 +234,11 @@ void freeSenseHat()
 // !!! when nothing was pressed you MUST return 0 !!!
 int readSenseHatJoystick()
 {
-    
+    int fd = findDeviceFile("/dev/input/event", "Raspberry Pi Sense HAT Joystick");
+    if(fd != -1){
+        struct pollfd pfd = {fd, POLLIN, 0};
+        int code = poll(&pfd, 1, 0);
+    }
     return 0;
 }
 
@@ -650,7 +653,7 @@ int main(int argc, char **argv)
             // reading the inputs from stdin. However, we expect you to read the inputs directly
             // from the input device and not from stdin (you should implement the readSenseHatJoystick
             // method).
-            key = readKeyboard();
+            //key = readKeyboard();
         }
         if (key == KEY_ENTER)
             break;
