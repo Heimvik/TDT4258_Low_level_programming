@@ -175,7 +175,7 @@ bool initializeSenseHat(int* fdFb)
         DEBUG_PRINT("yRes: %d\n", screen.resY);
         DEBUG_PRINT("BPP: %d\n", screen.bitDepth);
         
-        screen.senseHat = mmap(NULL, screen.resX*screen.resY*(screen.bitDepth/8), PROT_READ|PROT_WRITE, MAP_SHARED, fdFb, 0);
+        screen.senseHat = mmap(NULL, screen.resX*screen.resY*(screen.bitDepth/8), PROT_READ|PROT_WRITE, MAP_SHARED, *fdFb, 0);
         close(*fdFb);
     }
 
@@ -256,10 +256,10 @@ void freeSenseHat()
 int readSenseHatJoystick(int* fdJoy)
 {
     if(*fdJoy != -1){
-        struct pollfd pfd = {fdJoy, POLLIN, 0};
+        struct pollfd pfd = {*fdJoy, POLLIN, 0};
         struct input_event ev;
         if(poll(&pfd, 1, 0)){
-            read(fdJoy, &ev, sizeof(struct input_event));
+            read(*fdJoy, &ev, sizeof(struct input_event));
             if(ev.type == EV_KEY && ev.value == 1){
                 return ev.code;
             }
@@ -660,7 +660,7 @@ int main(int argc, char **argv)
     int fdJoy = findDeviceFile(joyBase, "Raspberry Pi Sense HAT Joystick");
     char* fbBase = "/dev/fb";
     int fdFb = findDeviceFile(fbBase, "RPi-Sense FB");
-    if (!initializeSenseHat(fdFb))
+    if (!initializeSenseHat(&fdFb))
     {
         fprintf(stderr, "ERROR: could not initilize sense hat\n");
         return 1;
@@ -676,7 +676,7 @@ int main(int argc, char **argv)
         struct timeval sTv, eTv;
         gettimeofday(&sTv, NULL);
 
-        int key = readSenseHatJoystick(fdJoy);
+        int key = readSenseHatJoystick(&fdJoy);
         if (!key)
         {
             // NOTE: Uncomment the next line if you want to test your implementation with
