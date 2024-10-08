@@ -97,16 +97,11 @@ static LedScreen_t screen;
 
 void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b);
 
-// This function is called on the start of your application
-// Here you can initialize what ever you need for your task
-// return false if something fails, else true
-bool initializeSenseHat()
-{
-    char* base = "/dev/fb";
+int findDeviceFile(char* base, char* id){
     char* fileName = malloc(strlen(base) + 4); // +4 for 3 digits and null terminator
     if (fileName == NULL) {
         perror("Failed to allocate memory for fileName");
-        return false; // Memory allocation failed
+        return -1; // Memory allocation failed
     }
 
     int currFb = 0;
@@ -120,22 +115,11 @@ bool initializeSenseHat()
         if (fb != -1) {
             struct fb_fix_screeninfo fInfo;
             ioctl(fb, FBIOGET_FSCREENINFO, &fInfo);
-            char targetStr[16] = "RPi-Sense FB";
-            if(!strcmp(fInfo.id,targetStr)){
-                DEBUG_PRINT("Found SenseHat\n");
-                
-                struct fb_var_screeninfo vInfo;
-                ioctl(fb, FBIOGET_VSCREENINFO, &vInfo);
-
-                screen.resX = (uint16_t)vInfo.xres;
-                screen.resY = (uint16_t)vInfo.yres;
-                screen.bitDepth = (uint16_t)vInfo.bits_per_pixel;
-                DEBUG_PRINT("xRes: %d\n", screen.resX);
-                DEBUG_PRINT("yRes: %d\n", screen.resY);
-                DEBUG_PRINT("BPP: %d\n", screen.bitDepth);
-                
-                screen.senseHat = mmap(NULL, screen.resX*screen.resY*(screen.bitDepth/8), PROT_READ|PROT_WRITE, MAP_SHARED, fb, 0);
+            if(!strcmp(fInfo.id,id)){
+                DEBUG_PRINT("Found device with id: %s\n",id);
                 close(fb);
+                free(fileName);
+                return currFb;
             } else{
                 close(fb);
             }
@@ -150,6 +134,31 @@ bool initializeSenseHat()
         currFb++;
     }
     free(fileName);
+    return -1;
+}
+
+// This function is called on the start of your application
+// Here you can initialize what ever you need for your task
+// return false if something fails, else true
+bool initializeSenseHat()
+{
+    char* base = "/dev/fb";
+    int fb = findDeviceFile(base, "RPi-Sense FB");
+    if(fb != -1){
+        struct fb_var_screeninfo vInfo;
+        ioctl(fb, FBIOGET_VSCREENINFO, &vInfo);
+
+        screen.resX = (uint16_t)vInfo.xres;
+        screen.resY = (uint16_t)vInfo.yres;
+        screen.bitDepth = (uint16_t)vInfo.bits_per_pixel;
+        DEBUG_PRINT("xRes: %d\n", screen.resX);
+        DEBUG_PRINT("yRes: %d\n", screen.resY);
+        DEBUG_PRINT("BPP: %d\n", screen.bitDepth);
+        
+        screen.senseHat = mmap(NULL, screen.resX*screen.resY*(screen.bitDepth/8), PROT_READ|PROT_WRITE, MAP_SHARED, fb, 0);
+        close(fb);
+    }
+
     for(int i = 0; i < screen.resX; i++){
         for(int j = 0; j < screen.resY; j++){
             setPixel(i,j,0,0,0);
@@ -183,7 +192,7 @@ void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
 void generateUniqueColors(Color_t* colorArray, int length)
 {
     // Define possible values for R, G, B in steps (e.g., 0, 128, 255)
-    uint8_t values[] = {128, 190, 255};
+    uint8_t values[] = {0,128, 255};
     int valueCount = sizeof(values) / sizeof(values[0]);
 
     int idx = 0;  // Array index
@@ -226,6 +235,7 @@ void freeSenseHat()
 // !!! when nothing was pressed you MUST return 0 !!!
 int readSenseHatJoystick()
 {
+    
     return 0;
 }
 
