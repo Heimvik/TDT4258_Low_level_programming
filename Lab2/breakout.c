@@ -183,14 +183,8 @@ void drawBlock(unsigned int** backBuffer, unsigned int xCoord, unsigned int yCoo
 void drawBar(unsigned int** backBuffer,unsigned int y);
 void drawGame(Game* game, unsigned int** buffer);
 void moveItem(Item* item, unsigned int** buffer);
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
 void loadTimer(unsigned int frequency);
->>>>>>> dev_walls
 
->>>>>>> dev_walls
 
 //VGA declarations
 struct VGA* initVGA();
@@ -668,13 +662,6 @@ void updateBallDirection(Game* game, HitPoint* hitPoints){
 
 void handleInput(Game* game, unsigned int** buffer){
     char input = uartReadChar();
-<<<<<<< HEAD
-    char hasMoved = 0;
-    if(input == 'w'){
-        for(int i = 0; i < 3; i++){
-            if(game->bars[i].yPos > 0){
-                game->bars[i].direction.y -= 5;
-=======
     switch(input){
         case 'w':
             for(int i = 0; i < 3; i++){
@@ -683,7 +670,6 @@ void handleInput(Game* game, unsigned int** buffer){
                 } else {
                     game->bars[i].direction.y = 0;
                 }   
->>>>>>> dev_walls
             }
             for(int i = 0; i < 3; i++){
                 moveItem(&(game->bars[i]), buffer);

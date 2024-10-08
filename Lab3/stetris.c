@@ -3,17 +3,29 @@
 #include <unistd.h>
 #include <termios.h>
 #include <sys/select.h>
+#include <sys/mman.h>
 #include <linux/input.h>
+#include <linux/fb.h>
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
 #include <poll.h>
+#include <fcntl.h> 
+#include <errno.h>
+#include <stdint.h>
 
 // The game state can be used to detect what happens on the playfield
 #define GAMEOVER 0
 #define ACTIVE (1 << 0)
 #define ROW_CLEAR (1 << 1)
 #define TILE_ADDED (1 << 2)
+
+#define DEBUG 1
+#ifdef DEBUG
+    #define DEBUG_PRINT(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#else
+    #define DEBUG_PRINT(fmt, ...) // No-op
+#endif
 
 // If you extend this structure, either avoid pointers or adjust
 // the game logic allocate/deallocate and reset the memory
@@ -58,11 +70,65 @@ gameConfig game = {
     .initNextGameTick = 50,
 };
 
+static uint8_t* senseHat = NULL;
+
 // This function is called on the start of your application
 // Here you can initialize what ever you need for your task
 // return false if something fails, else true
 bool initializeSenseHat()
 {
+    char* base = "/dev/fb";
+    char* fileName = malloc(strlen(base) + 4); // +4 for 3 digits and null terminator
+    if (fileName == NULL) {
+        perror("Failed to allocate memory for fileName");
+        return false; // Memory allocation failed
+    }
+
+    int currFb = 0;
+    int fb = -1;
+
+    while (1) {
+        sprintf(fileName, "%s%d", base, currFb); // Construct the framebuffer name
+        printf("Trying to open %s\n", fileName);
+
+        fb = open(fileName, O_RDWR);
+        if (fb != -1) {
+            struct fb_fix_screeninfo fInfo;
+            ioctl(fb, FBIOGET_FSCREENINFO, &fInfo);
+            char targetStr[16] = "RPi-Sense FB";
+            if(!strcmp(fInfo.id,targetStr)){
+                DEBUG_PRINT("Found SenseHat\n");
+                
+                struct fb_var_screeninfo vInfo;
+                ioctl(fb, FBIOGET_VSCREENINFO, &vInfo);
+                uint32_t vYres = vInfo.yres_virtual;
+                uint32_t lineLength = fInfo.line_length;
+                
+                DEBUG_PRINT("vYres: %d\n", vYres);
+                DEBUG_PRINT("lineLength: %d\n", lineLength);
+                
+                senseHat = mmap(NULL, vYres*lineLength, PROT_READ|PROT_WRITE, MAP_SHARED, fb, 0);
+                close(fb);
+            } else{
+                close(fb);
+            }
+        } else if (errno == ENOENT) {
+            printf("Reached end of fbs\n");
+            break;
+        } else {
+            perror("Failed to open framebuffer");
+            break;
+        }
+
+        currFb++;
+    }
+    free(fileName);
+    
+
+
+    printf("SenseHat: %p\n", senseHat);
+    
+
     return true;
 }
 
@@ -416,6 +482,8 @@ int main(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
+    initializeSenseHat();
+    return 0;
     // This sets the stdin in a special state where each
     // keyboard press is directly flushed to the stdin and additionally
     // not outputted to the stdout
