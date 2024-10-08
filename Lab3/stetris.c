@@ -115,6 +115,8 @@ int findDeviceFile(char* base, char* id){
         if (fb != -1) {
             struct fb_fix_screeninfo fInfo;
             ioctl(fb, FBIOGET_FSCREENINFO, &fInfo);
+            DEBUG_PRINT("Target id: %s\n",id);
+            DEBUG_PRINT("Current id: %s\n",fInfo.id);
             if(!strcmp(fInfo.id,id)){
                 DEBUG_PRINT("Found device with id: %s\n",id);
                 free(fileName);
