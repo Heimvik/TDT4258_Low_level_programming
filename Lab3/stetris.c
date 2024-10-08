@@ -616,6 +616,10 @@ int main(int argc, char **argv)
     game.playfield = (tile **)malloc(game.grid.y * sizeof(tile *));
     game.tileColors = (Color_t*)malloc(game.grid.x * game.grid.y * sizeof(Color_t));
     generateUniqueColors(game.tileColors, game.grid.x * game.grid.y);
+    while(1){
+        readSenseHatJoystick();
+        usleep(100000);
+    }
     if (!game.playfield || !game.rawPlayfield)
     {
         fprintf(stderr, "ERROR: could not allocate playfield\n");
@@ -660,8 +664,8 @@ int main(int argc, char **argv)
             break;
 
         bool playfieldChanged = sTetris(key);
-        //renderConsole(playfieldChanged);
-        //renderSenseHatMatrix(playfieldChanged);
+        renderConsole(playfieldChanged);
+        renderSenseHatMatrix(playfieldChanged);
 
         // Wait for next tick
         gettimeofday(&eTv, NULL);
