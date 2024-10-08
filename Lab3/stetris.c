@@ -299,7 +299,6 @@ static inline void newTile(coord const target)
 {
     Color_t color = game.tileColors[game.tiles-(game.score*game.grid.x)];
     game.tileColors[game.tiles-(game.score*game.grid.x)] = color;
-    game.tileColors++;
     game.playfield[target.y][target.x].color = color;
     game.playfield[target.y][target.x].occupied = true;
 }
