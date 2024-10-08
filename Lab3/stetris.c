@@ -138,8 +138,7 @@ bool initializeSenseHat()
     free(fileName);
     for(int i = 0; i < screen.resX; i++){
         for(int j = 0; j < screen.resY; j++){
-            setPixel(i,j,0,0,255);
-            usleep(10000);
+            setPixel(i,j,0,0,0);
         }
     }
     
@@ -170,6 +169,7 @@ void setPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b){
 // Here you can free up everything that you might have opened/allocated
 void freeSenseHat()
 {
+    munmap((void*)screen.senseHat,screen.resY*screen.resX*(screen.bitDepth/2));
 }
 
 // This function should return the key that corresponds to the joystick press
@@ -186,7 +186,24 @@ int readSenseHatJoystick()
 // has changed the playfield
 void renderSenseHatMatrix(bool const playfieldChanged)
 {
-    (void)playfieldChanged;
+    if(playfieldChanged){
+        uint8_t r=255,g=255,b=255;
+        for(int i = 0; i<game.grid.x; i++){
+            for(int j = 0; j<game.grid.y; j++){
+                if(game.playfield[j][i].occupied){
+                    //Set the pixel very different from the one before
+                    r = 255-r;
+                    g = 255-g;
+                    b = 255-b;
+                } else{
+                    r = 0;
+                    g = 0;
+                    b = 0;
+                }
+                setPixel(i,j,r,g,b);
+            }
+        }
+    }
 }
 
 // The game logic uses only the following functions to interact with the playfield.
@@ -516,8 +533,6 @@ int main(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
-    initializeSenseHat();
-    return 0;
     // This sets the stdin in a special state where each
     // keyboard press is directly flushed to the stdin and additionally
     // not outputted to the stdout
@@ -570,7 +585,7 @@ int main(int argc, char **argv)
             // reading the inputs from stdin. However, we expect you to read the inputs directly
             // from the input device and not from stdin (you should implement the readSenseHatJoystick
             // method).
-            // key = readKeyboard();
+            key = readKeyboard();
         }
         if (key == KEY_ENTER)
             break;
