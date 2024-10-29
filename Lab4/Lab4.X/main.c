@@ -44,14 +44,21 @@ ISR(AC0_AC_vect)
 
 int main(void) {
     USART3_Init();
-    initAC(1);
     initLed();
     
-
+    //initAC(MODE_AC_INTERRUPT);
     //initTC(100);
+    initAC(MODE_EVENT);
+    initEvSys();
+    
     //Enable global interrupts
     sei();
-    //Setup interrupt controller
+    //Disable all relevant input buffers
+    disableAllInputBuffers();
+    enableAllPullups();
+    //Switch to slow oscillator
+    FUSE.OSCCFG |= FUSE_CLKSEL_0_bm;
+    //Set sleep mode
     set_sleep_mode(SLEEP_MODE_STANDBY);
     while(1) {
         sleep_mode();

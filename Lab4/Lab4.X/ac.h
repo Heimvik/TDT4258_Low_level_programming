@@ -18,13 +18,18 @@ extern "C" {
 #define PRESCALER 2
 
     void printACRegisters();
-    
-    void initAC(uint8_t interruptDriven);
+    void disableAllInputBuffers();
+    void initAC(int mode);
     uint8_t readAC();
     
     void initTC(uint8_t ms_period);
     
-
+    enum ACmode {
+        MODE_NORMAL = 0,
+        MODE_AC_INTERRUPT = 1,
+        MODE_EVENT = 2
+    };
+    void initEvSys();
 
 #ifdef	__cplusplus
 }
