@@ -13,15 +13,16 @@ extern "C" {
 #endif
     
 #include <avr/io.h>
-#define PD2_POS 2
-#define PA2_POS 2
-#define INVEN_POS 7    
+#include "usart.h"
 
+
+    void printACRegisters();
     
-    void initAnalogComparator(); 
-    void initLed();
-    void setLed();
-    void clearLed();
+    void initAC(uint8_t interruptDriven);
+    uint8_t readAC();
+    
+    void initTC(uint8_t ms_period);
+    
 
 
 #ifdef	__cplusplus
