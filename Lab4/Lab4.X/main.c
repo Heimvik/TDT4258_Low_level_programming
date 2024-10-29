@@ -9,24 +9,29 @@
 #include <stdlib.h>
 #include <avr/io.h>
 #include <util/delay.h>
-#include "internals.h"
+#include "ac.h"
+#include "led.h"
+
+
+
 
 int main(void) {
-
+    initAC(0);
     initLed();
     USART3_Init();
 
-    // Send a message to USART indicating the LED is off initially
-    USART3_SendString("LED is OFF\n");
-
+    USART3_SendString("All regs:\n");
+    printACRegisters(); 
     // Main loop
     while (1) {
-        // Toggle LED state
-        setLed();
-        USART3_SendString("On");
-        _delay_ms(1000);
-        clearLed();
-        USART3_SendString("Off");
-        _delay_ms(1000);
+        USART3_SendHex(AC0.STATUS,"Status: ");
+        
+        if(readAC() & 0x10){
+            setLed();
+        } else {
+            USART3_SendString("CLR\n");
+            clearLed();
+        }
+        _delay_ms(100);
     }
 }

@@ -16,5 +16,7 @@ bool USART3_IsTxReady(void);
 bool USART3_IsRxReady(void);
 uint8_t USART3_Read();
 
+char nibbleToHex(uint8_t nibble);
+void USART3_SendHex(uint8_t value, const char* regName);
 
 #endif  // USART3_H
