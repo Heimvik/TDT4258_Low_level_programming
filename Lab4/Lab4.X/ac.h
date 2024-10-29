@@ -14,7 +14,8 @@ extern "C" {
     
 #include <avr/io.h>
 #include "usart.h"
-
+    
+#define PRESCALER 2
 
     void printACRegisters();
     

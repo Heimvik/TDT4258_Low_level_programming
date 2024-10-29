@@ -2,7 +2,6 @@
 #include "ac.h"
 
 
-
 // Analog comparator
 
 void printACRegisters() {
@@ -29,8 +28,8 @@ void initAC(uint8_t interruptDriven){
     //Select the DAC reference for the AC
     AC0.DACREF = 0x18;
     
-    //Set Control A register
-    AC0.CTRLA = AC_ENABLE_bm; //| AC_RUNSTDBY_bm;
+    //Set Control A register and let it aquire clock in standby mode
+    AC0.CTRLA = AC_ENABLE_bm | AC_RUNSTDBY_bm;
     
     //Mux in AINP0 and DACREF to AC
     AC0.MUXCTRL = (0x1<<AC_INVERT_bp) | (0x0<<AC_MUXPOS_gp) | (0x3<<AC_MUXNEG_gp);
@@ -50,21 +49,14 @@ uint8_t readAC(){
     return AC0.STATUS;
 }
 
-
 //Timer/Counter
+
 void initTC(uint8_t ms_period){
     // Set the period of the timer. PER = period[s] * F_CPU / Prescaler = 0.01s * 4 000 000 Hz / 2
-    TCA0.SINGLE.PER = 20000;
+    TCA0.SINGLE.PER = (ms_period*1000)*F_CPU/PRESCALER;
     // Enable timer overflow interrupt
     TCA0.SINGLE.INTCTRL = TCA_SINGLE_OVF_bm;
     // Run timer in standby mode, set prescaler to 2, enable timer
     TCA0.SINGLE.CTRLA = TCA_SINGLE_RUNSTDBY_bm | TCA_SINGLE_CLKSEL_DIV2_gc | TCA_SINGLE_ENABLE_bm;
 }
 
-ISR(TCA0_OVF_vect)
-{
-    // Add your code here 
-    
-    // Clear interrupt flag
-    TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm;
-}
